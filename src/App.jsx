@@ -917,17 +917,60 @@ function AlumnosView({schedule,sport,users,inscripciones,setInscripciones,setSch
   );
 }
 
-/* ── CALENDARIO ADMIN ── */
-function CalendarDashboard({schedule}){
+/* ── CALENDARIO ADMIN (interactivo) ── */
+function CalendarDashboard({schedule,setSchedule,users,addLog}){
   const [activeSport,setActiveSport]=useState("natacion");
   const sport=SPORTS.find(s=>s.id===activeSport);
   const items=schedule.filter(s=>s.deporte===activeSport);
+  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(activeSport));
+
+  // Modal state
+  const [modal,setModal]=useState(null); // {type:"new"|"edit", dia, hora, clase?}
+  const [selProf,setSelProf]=useState("");
+  const [lugar,setLugar]=useState("");
+  const [cupo,setCupo]=useState(10);
+  const [saving,setSaving]=useState(false);
+  const [expandedId,setExpandedId]=useState(null);
+
+  const openNew=(dia,hora)=>{setModal({type:"new",dia,hora});setSelProf("");setLugar("");setCupo(10);};
+  const openEdit=(cls)=>{setModal({type:"edit",clase:cls,dia:cls.dia,hora:cls.hora});setSelProf(cls.usuario_profesor||"");setLugar(cls.lugar||"");setCupo(cls.cupo||10);};
+  const closeModal=()=>setModal(null);
+
+  const saveNew=async()=>{
+    if(!selProf||!lugar){return;}
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
+    const {data}=await supabase.from("clases").insert([{deporte:activeSport,dia:modal.dia,hora:modal.hora,profesor:profNombre,usuario_profesor:selProf,lugar,cupo,inscriptos:0}]).select().single();
+    if(data)setSchedule(p=>[...p,data]);
+    addLog(`Creó clase ${activeSport} ${modal.dia} ${modal.hora}`);
+    setSaving(false);closeModal();
+  };
+
+  const saveEdit=async()=>{
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():modal.clase.profesor;
+    await supabase.from("clases").update({profesor:profNombre,usuario_profesor:selProf,lugar,cupo}).eq("id",modal.clase.id);
+    setSchedule(p=>p.map(s=>s.id===modal.clase.id?{...s,profesor:profNombre,usuario_profesor:selProf,lugar,cupo}:s));
+    addLog(`Editó clase ${activeSport} ${modal.dia} ${modal.hora}`);
+    setSaving(false);closeModal();
+  };
+
+  const deleteClass=async(id)=>{
+    await supabase.from("clases").delete().eq("id",id);
+    setSchedule(p=>p.filter(s=>s.id!==id));
+    addLog(`Eliminó clase ${activeSport}`);
+    closeModal();
+  };
+
   return(
     <div className="px-4 pt-4 pb-24">
       <h2 className="font-semibold mb-3" style={{color:"#33414A",fontFamily:"Inter"}}>Panel de disponibilidad</h2>
+      <p className="text-xs mb-3" style={{color:"#8A99A3",fontFamily:"Inter"}}>Tocá una celda vacía para agregar clase · tocá una clase para editarla</p>
       <div className="flex gap-2 overflow-x-auto mb-4" style={{scrollbarWidth:"none"}}>
         {SPORTS.map(s=>(
-          <button key={s.id} onClick={()=>setActiveSport(s.id)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
+          <button key={s.id} onClick={()=>{setActiveSport(s.id);setExpandedId(null);}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
             style={{background:activeSport===s.id?s.color:"#fff",color:activeSport===s.id?"#fff":"#33414A",border:`1px solid ${activeSport===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
             {s.emoji} {s.name}
           </button>
@@ -941,17 +984,78 @@ function CalendarDashboard({schedule}){
         {HOURS.map((hour,i)=>(
           <div key={hour} className="grid" style={{gridTemplateColumns:"52px repeat(6,1fr)",background:i%2===0?"#fff":"#F7F5EF",borderTop:"1px solid #E2E8ED"}}>
             <div className="p-1.5 text-center" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono",borderRight:"1px solid #E2E8ED",fontSize:"10px"}}>{hour}</div>
-            {DAYS.map(d=>{const cls=items.find(it=>it.dia===d&&it.hora===hour);return(
-              <div key={d} className="p-0.5 min-h-[30px]" style={{borderRight:"1px solid #E2E8ED"}}>
-                {cls&&<div className="rounded px-1 py-0.5 leading-tight" style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport.color+"22",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"9px",fontWeight:600}}>
-                  {cls.profesor?.split(" ")[0]}<br/><span style={{fontFamily:"IBM Plex Mono",fontSize:"8px"}}>{cls.inscriptos}/{cls.cupo}</span>
-                </div>}
-              </div>
-            );})}
+            {DAYS.map(d=>{
+              const cls=items.find(it=>it.dia===d&&it.hora===hour);
+              return(
+                <div key={d} className="p-0.5 min-h-[30px]" style={{borderRight:"1px solid #E2E8ED"}}>
+                  {cls
+                    ?<button onClick={()=>openEdit(cls)} className="w-full rounded px-1 py-0.5 leading-tight text-left"
+                        style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport.color+"33",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"9px",fontWeight:600,border:"none",cursor:"pointer"}}>
+                        {cls.profesor?.split(" ")[0]}<br/>
+                        <span style={{fontFamily:"IBM Plex Mono",fontSize:"8px"}}>{cls.inscriptos}/{cls.cupo}</span>
+                      </button>
+                    :<button onClick={()=>openNew(d,hour)} className="w-full h-full min-h-[28px] rounded flex items-center justify-center opacity-0 hover:opacity-100"
+                        style={{background:sport.color+"11",border:`1px dashed ${sport.color}44`,cursor:"pointer",fontSize:"14px",transition:"opacity 0.15s"}}>
+                        +
+                      </button>
+                  }
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
-      <p className="text-xs text-center mt-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>🟠 completa · color = cupo disponible</p>
+      <p className="text-xs text-center mt-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>🟠 completa · color = cupo disponible · tocá celda vacía para agregar</p>
+
+      {/* Modal */}
+      {modal&&(
+        <div className="fixed inset-0 z-50 flex items-end" style={{background:"rgba(11,61,76,0.6)"}} onClick={closeModal}>
+          <div className="w-full max-w-2xl mx-auto rounded-t-3xl p-5" style={{background:"#F7F5EF"}} onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{sport?.emoji} {sport?.name}</p>
+                <h3 className="font-semibold text-lg" style={{color:"#33414A",fontFamily:"Fraunces"}}>
+                  {modal.type==="new"?"Nueva clase":"Editar clase"}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{DAY_LABELS[modal.dia]||modal.dia}</span>
+                  <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{modal.hora}</span>
+                </div>
+              </div>
+              <button onClick={closeModal} style={{background:"none",border:"none",cursor:"pointer",color:"#8A99A3"}}><X size={20}/></button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Profesor/a</label>
+                <select value={selProf} onChange={e=>setSelProf(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+                  <option value="">— Seleccioná profesor —</option>
+                  {profesores.map(p=><option key={p.id} value={p.usuario}>{p.nombre} {p.apellido||""}</option>)}
+                </select>
+                {profesores.length===0&&<p className="text-xs mt-1" style={{color:"#E8622C",fontFamily:"Inter"}}>⚠ No hay profesores con este deporte asignado.</p>}
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Lugar</label>
+                <input value={lugar} onChange={e=>setLugar(e.target.value)} placeholder="ej: Pileta 1, Cancha A" className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Cupo máximo</label>
+                <input type="number" value={cupo} onChange={e=>setCupo(+e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              {modal.type==="new"
+                ?<button onClick={saveNew} disabled={saving||!selProf||!lugar} className="flex-1 text-white text-sm font-semibold rounded-lg py-2.5" style={{background:selProf&&lugar?"#0B3D4C":"#8A99A3",border:"none",cursor:selProf&&lugar?"pointer":"not-allowed"}}>{saving?"Guardando...":"Crear clase"}</button>
+                :<><button onClick={saveEdit} disabled={saving||!selProf||!lugar} className="flex-1 text-white text-sm font-semibold rounded-lg py-2.5" style={{background:selProf&&lugar?"#0B3D4C":"#8A99A3",border:"none",cursor:selProf&&lugar?"pointer":"not-allowed"}}>{saving?"Guardando...":"Guardar cambios"}</button>
+                  <button onClick={()=>deleteClass(modal.clase.id)} className="text-sm font-semibold rounded-lg py-2.5 px-4" style={{background:"#FCE7DC",color:"#B4441C",border:"none",cursor:"pointer"}}>🗑</button>
+                </>
+              }
+              <button onClick={closeModal} className="text-sm font-semibold rounded-lg py-2.5 px-4" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer"}}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1132,7 +1236,7 @@ export default function App(){
           )}
           {tab==="solicitudes"&&<RequestsView requests={requests} setRequests={setRequests} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users}/>}
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} userName={profile.usuario}/>}
-          {tab==="calendario"&&<CalendarDashboard schedule={schedule}/>}
+          {tab==="calendario"&&<CalendarDashboard schedule={schedule} setSchedule={setSchedule} users={users} addLog={addLog}/>}
           {tab==="medica"&&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users}/>}
           {tab==="alumnos"&&<AlumnosView schedule={schedule} sport={activeSport} users={users} inscripciones={inscripciones} setInscripciones={setInscripciones} setSchedule={setSchedule} setUsers={setUsers}/>}
           {tab==="log"&&<LogPanel log={log}/>}
