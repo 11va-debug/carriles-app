@@ -3,44 +3,58 @@ import { supabase } from "./lib/supabase";
 import AdminPanel from "./AdminPanel";
 
 function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
+  const [usuarioInput, setUsuarioInput] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    // 1. Intentamos entrar con el Auth de Supabase (email y password)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
+    // 1. Auth oficial de Supabase
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: usuarioInput, 
       password: password,
     });
 
-    if (error) {
-      setError("Credenciales incorrectas");
+    if (authError) {
+      setError("Usuario o contraseña incorrectos.");
       return;
     }
 
-    // 2. Si entró, buscamos en TU tabla 'usuarios' usando el ID
+    // 2. Consultamos tu tabla 'usuario' (singular) usando el ID
     const { data: userData, error: dbError } = await supabase
-      .from('usuarios')
-      .select('rol, usuario')
+      .from('usuario')
+      .select('*')
       .eq('id', data.user.id)
       .single();
 
     if (dbError || !userData) {
-      setError("Usuario no encontrado en la base de datos");
+      setError("No se pudo cargar el perfil de usuario.");
       return;
     }
       
-    // 3. Guardamos el perfil con el rol que viene de TU tabla
-    onLogin({ ...data.user, rol: userData.rol, usuario: userData.usuario });
+    // 3. Pasamos el perfil completo al App
+    onLogin(userData);
   }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
       <h2 className="mb-4 font-bold text-xl">Ingreso al Sistema</h2>
-      <input className="border p-2 mb-2 w-full max-w-xs" placeholder="Email (Usuario)" onChange={(e) => setEmail(e.target.value)} />
-      <input className="border p-2 mb-2 w-full max-w-xs" type="password" placeholder="Contraseña" onChange={(e) => setPassword(e.target.value)} />
-      <button onClick={handleLogin} className="bg-blue-600 text-white p-2 px-4 rounded w-full max-w-xs">Ingresar</button>
+      <input 
+        className="border p-2 mb-2 w-full max-w-xs" 
+        placeholder="Email" 
+        onChange={(e) => setUsuarioInput(e.target.value)} 
+      />
+      <input 
+        className="border p-2 mb-2 w-full max-w-xs" 
+        type="password" 
+        placeholder="Contraseña" 
+        onChange={(e) => setPassword(e.target.value)} 
+      />
+      <button 
+        onClick={handleLogin} 
+        className="bg-blue-600 text-white p-2 px-4 rounded w-full max-w-xs"
+      >
+        Ingresar
+      </button>
       {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
     </div>
   );
