@@ -48,7 +48,7 @@ function Badge({children,tone="aqua"}){
 }
 
 /* ── LOGIN ── */
-function Login({onLogin}){
+function Login({onLogin, resetError, onClearError}){
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [error,setError]=useState("");
@@ -83,6 +83,12 @@ function Login({onLogin}){
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
             className="w-full rounded-lg px-3 py-2.5 mt-1 mb-3 text-sm" style={{background:"#0B3D4C",color:"#F7F5EF",border:"1px solid rgba(46,156,171,0.4)",fontFamily:"Inter",outline:"none"}}/>
           {error&&<p className="text-xs mb-3" style={{color:"#F2A08C",fontFamily:"Inter"}}>{error}</p>}
+          {resetError&&(
+            <div className="rounded-lg p-3 mb-3" style={{background:"#FCE7DC"}}>
+              <p className="text-xs font-semibold" style={{color:"#B4441C",fontFamily:"Inter"}}>⚠ {resetError}</p>
+              <button onClick={onClearError} className="text-xs mt-1 underline" style={{color:"#B4441C",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Cerrar</button>
+            </div>
+          )}
           <button onClick={handleLogin} disabled={loading} className="w-full rounded-lg py-2.5 text-sm font-semibold text-white" style={{background:"#E8622C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
             {loading?"Ingresando...":"Ingresar"}
           </button>
@@ -1153,10 +1159,20 @@ export default function App(){
   const [profile,setProfile]           = useState(null);
   const [isReset,setIsReset]           = useState(false);
 
+  const [resetError,setResetError] = useState("");
+
   // Detectar token de reset en la URL
   useEffect(()=>{
-    // Chequear hash inmediatamente al cargar
     const hash = window.location.hash;
+
+    // Detectar error de token expirado
+    if(hash.includes("error=access_denied")||hash.includes("otp_expired")){
+      setResetError("El link de restablecimiento expiró o ya fue usado. Pedile al administrador que envíe uno nuevo.");
+      window.location.hash = "";
+      return;
+    }
+
+    // Chequear hash inmediatamente al cargar
     if(hash.includes("type=recovery")){
       setIsReset(true);
       return;
@@ -1223,7 +1239,7 @@ export default function App(){
   };
 
   if(isReset)return <ResetPassword onDone={()=>{setIsReset(false); window.location.hash=""; }}/>;
-  if(!profile)return <Login onLogin={p=>{setProfile(p);setTab(p.rol==="admin"?"calendario":"horarios");}}/>;
+  if(!profile)return <Login onLogin={p=>{setProfile(p);setTab(p.rol==="admin"?"calendario":"horarios");}} resetError={resetError} onClearError={()=>setResetError("")}/>;
 
   const role=profile.rol;
   const mySports=profile.deportes?profile.deportes.split(";").map(s=>s.trim()):SPORTS.map(s=>s.id);
