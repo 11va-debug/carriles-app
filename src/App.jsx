@@ -93,6 +93,68 @@ function Login({onLogin}){
   );
 }
 
+/* ── RESET PASSWORD ── */
+function ResetPassword({onDone}){
+  const [password,setPassword]=useState("");
+  const [confirm,setConfirm]=useState("");
+  const [showPass,setShowPass]=useState(false);
+  const [error,setError]=useState("");
+  const [success,setSuccess]=useState(false);
+  const [loading,setLoading]=useState(false);
+
+  const save=async()=>{
+    if(password.length<6){setError("La contraseña debe tener al menos 6 caracteres.");return;}
+    if(password!==confirm){setError("Las contraseñas no coinciden.");return;}
+    setLoading(true); setError("");
+    const {error:err}=await supabase.auth.updateUser({password});
+    if(err){setError("Error: "+err.message); setLoading(false); return;}
+    setSuccess(true); setLoading(false);
+    setTimeout(()=>onDone(),2000);
+  };
+
+  return(
+    <div className="min-h-screen flex flex-col justify-center px-6 py-12 relative overflow-hidden" style={{background:"#0B3D4C"}}>
+      <style>{FONT_IMPORT}</style>
+      <svg className="absolute top-0 left-0 w-full opacity-20" style={{height:"100px"}} viewBox="0 0 400 100" preserveAspectRatio="none">
+        <path d="M0,60 Q100,20 200,60 T400,60" stroke="#F2C230" strokeWidth="3" fill="none"/>
+        <path d="M0,75 Q100,35 200,75 T400,75" stroke="#2E9CAB" strokeWidth="3" fill="none"/>
+      </svg>
+      <div className="relative z-10 max-w-sm mx-auto w-full">
+        <p className="text-xs font-bold tracking-widest uppercase mb-1" style={{color:"#F2C230",fontFamily:"Inter"}}>Club Escuela Deportiva</p>
+        <h1 className="text-4xl mb-1" style={{color:"#F7F5EF",fontFamily:"Fraunces",fontWeight:600}}>Carriles</h1>
+        <p className="text-sm mb-6" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Elegí tu nueva contraseña</p>
+        {success?(
+          <div className="rounded-2xl p-5 text-center" style={{background:"#E1F0E3"}}>
+            <p className="text-2xl mb-2">✓</p>
+            <p className="font-semibold" style={{color:"#2C6E31",fontFamily:"Inter"}}>Contraseña actualizada</p>
+            <p className="text-sm mt-1" style={{color:"#5A9060",fontFamily:"Inter"}}>Redirigiendo al login...</p>
+          </div>
+        ):(
+          <div className="rounded-2xl p-4" style={{background:"#123B4A",border:"1px solid rgba(46,156,171,0.3)"}}>
+            <label className="text-xs font-bold uppercase tracking-wide" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Nueva contraseña</label>
+            <div className="relative mt-1 mb-3">
+              <input type={showPass?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full rounded-lg px-3 py-2.5 text-sm pr-10" style={{background:"#0B3D4C",color:"#F7F5EF",border:"1px solid rgba(46,156,171,0.4)",fontFamily:"Inter",outline:"none"}}/>
+              <button type="button" onClick={()=>setShowPass(!showPass)} style={{position:"absolute",right:"10px",top:"10px",background:"none",border:"none",cursor:"pointer"}}>
+                {showPass?<EyeOff size={16} color="#9FC4CE"/>:<Eye size={16} color="#9FC4CE"/>}
+              </button>
+            </div>
+            <label className="text-xs font-bold uppercase tracking-wide" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Confirmá la contraseña</label>
+            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)}
+              placeholder="Repetí la contraseña"
+              className="w-full rounded-lg px-3 py-2.5 mt-1 mb-3 text-sm" style={{background:"#0B3D4C",color:"#F7F5EF",border:"1px solid rgba(46,156,171,0.4)",fontFamily:"Inter",outline:"none"}}/>
+            {error&&<p className="text-xs mb-3" style={{color:"#F2A08C",fontFamily:"Inter"}}>{error}</p>}
+            <button onClick={save} disabled={loading} className="w-full rounded-lg py-2.5 text-sm font-semibold text-white" style={{background:"#E8622C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+              {loading?"Guardando...":"Guardar nueva contraseña"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── CREAR USUARIO (Admin) ── */
 function CrearUsuario({onBack}){
   const [form,setForm]=useState({nombre:"",email:"",password:"12345678",rol:"usuario",deportes:[],dni:"",fecha_nacimiento:"",sexo:"",apellido:""});
@@ -1089,6 +1151,21 @@ function LogPanel({log}){
 /* ── APP ROOT ── */
 export default function App(){
   const [profile,setProfile]           = useState(null);
+  const [isReset,setIsReset]           = useState(false);
+
+  // Detectar token de reset en la URL
+  useEffect(()=>{
+    const hash = window.location.hash;
+    if(hash.includes("type=recovery")||hash.includes("type=signup")){
+      setIsReset(true);
+    }
+    // También manejar sesión activa por token
+    supabase.auth.onAuthStateChange((event)=>{
+      if(event==="PASSWORD_RECOVERY"){
+        setIsReset(true);
+      }
+    });
+  },[]);
   const [tab,setTab]                   = useState("horarios");
   const [sport,setSport]               = useState("natacion");
   const [schedule,setSchedule]         = useState([]);
@@ -1133,6 +1210,7 @@ export default function App(){
     setProfile(null); setSchedule([]); setRequests([]); setLog([]); setShowCrear(false);
   };
 
+  if(isReset)return <ResetPassword onDone={()=>{setIsReset(false); window.location.hash=""; }}/>;
   if(!profile)return <Login onLogin={p=>{setProfile(p);setTab(p.rol==="admin"?"calendario":"horarios");}}/>;
 
   const role=profile.rol;
