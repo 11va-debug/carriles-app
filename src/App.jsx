@@ -3,35 +3,35 @@ import { supabase } from "./lib/supabase";
 import AdminPanel from "./AdminPanel";
 
 function Login({ onLogin }) {
-  const [usuarioInput, setUsuarioInput] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    // 1. Auth oficial de Supabase
+    // 1. Entramos con el email (que es el ID de Auth)
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: usuarioInput, 
+      email: email, 
       password: password,
     });
 
     if (authError) {
-      setError("Usuario o contraseña incorrectos.");
+      setError("Usuario (email) o contraseña incorrectos.");
       return;
     }
 
-    // 2. Consultamos tu tabla 'usuario' (singular) usando el ID
+    // 2. Buscamos en tu tabla 'usuarios' donde el 'id' sea el de Auth
     const { data: userData, error: dbError } = await supabase
-      .from('usuario')
+      .from('usuarios')
       .select('*')
       .eq('id', data.user.id)
       .single();
 
     if (dbError || !userData) {
-      setError("No se pudo cargar el perfil de usuario.");
+      setError("No se encontró el perfil en la tabla 'usuarios'.");
       return;
     }
       
-    // 3. Pasamos el perfil completo al App
+    // 3. Pasamos el perfil encontrado
     onLogin(userData);
   }
 
@@ -40,8 +40,8 @@ function Login({ onLogin }) {
       <h2 className="mb-4 font-bold text-xl">Ingreso al Sistema</h2>
       <input 
         className="border p-2 mb-2 w-full max-w-xs" 
-        placeholder="Email" 
-        onChange={(e) => setUsuarioInput(e.target.value)} 
+        placeholder="Tu Email (ej: nombre@mail.com)" 
+        onChange={(e) => setEmail(e.target.value)} 
       />
       <input 
         className="border p-2 mb-2 w-full max-w-xs" 
