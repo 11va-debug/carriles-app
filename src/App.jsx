@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase";
 import {
   Calendar as CalendarIcon, Check, X, ArrowLeftRight, Upload, LogOut,
   Plus, Pencil, Copy, ClipboardCheck, Loader, Bell, CreditCard,
-  Stethoscope, Users, FileText, Clock, Eye, EyeOff, ShieldCheck
+  Stethoscope, Users, FileText, Clock, Eye, EyeOff, ShieldCheck, User
 } from "lucide-react";
 
 const FONT_IMPORT = `
@@ -22,6 +22,16 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function calcEdad(fechaNac) {
+  if (!fechaNac) return null;
+  const hoy = new Date();
+  const nac = new Date(fechaNac);
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  return edad;
+}
 
 function nextDateForDay(dayName) {
   const now=new Date(), todayDow=now.getDay();
@@ -77,38 +87,35 @@ function Login({onLogin}){
             {loading?"Ingresando...":"Ingresar"}
           </button>
         </div>
-        <p className="text-xs mt-6 text-center" style={{color:"#5D8A96",fontFamily:"Inter"}}>Maqueta de demostración · Diplomatura IA FCE-UBA 2026</p>
+        <p className="text-xs mt-6 text-center" style={{color:"#5D8A96",fontFamily:"Inter"}}>Diplomatura IA FCE-UBA 2026</p>
       </div>
     </div>
   );
 }
 
-/* ── ADMIN PANEL ── */
-function AdminPanel({onBack}){
-  const [email,setEmail]=useState("");
-  const [password,setPassword]=useState("12345678");
+/* ── CREAR USUARIO (Admin) ── */
+function CrearUsuario({onBack}){
+  const [form,setForm]=useState({nombre:"",email:"",password:"12345678",rol:"usuario",deportes:[],dni:"",fecha_nacimiento:"",sexo:"",apellido:""});
   const [showPass,setShowPass]=useState(false);
-  const [rol,setRol]=useState("usuario");
-  const [nombre,setNombre]=useState("");
-  const [deportes,setDeportes]=useState([]);
-  const [usuarioProf,setUsuarioProf]=useState("");
   const [msg,setMsg]=useState("");
   const [loading,setLoading]=useState(false);
-  const opDeportes=["natacion","voley","handball","matro"];
+  const opDep=["natacion","voley","handball","matro"];
 
-  const toggleDep=(d)=>setDeportes(prev=>prev.includes(d)?prev.filter(x=>x!==d):[...prev,d]);
+  const toggleDep=(d)=>setForm(prev=>({...prev,deportes:prev.deportes.includes(d)?prev.deportes.filter(x=>x!==d):[...prev.deportes,d]}));
 
-  const crearUsuario=async()=>{
+  const crear=async()=>{
+    if(!form.email||!form.nombre){setMsg("Nombre y email son obligatorios.");return;}
     setLoading(true); setMsg("Procesando...");
-    const {data,error:authErr}=await supabase.auth.signUp({email,password});
+    const {data,error:authErr}=await supabase.auth.signUp({email:form.email,password:form.password});
     if(authErr){setMsg("Error Auth: "+authErr.message);setLoading(false);return;}
     const {error:dbErr}=await supabase.from("usuarios").insert([{
-      id:data.user.id, usuario:email, rol, nombre:nombre||email,
-      deportes:deportes.join(";"),
-      ...(rol==="profesor"?{usuario_profesor:usuarioProf||email.split("@")[0]}:{})
+      id:data.user.id, usuario:form.email, rol:form.rol,
+      nombre:form.nombre, apellido:form.apellido,
+      deportes:form.deportes.join(";"),
+      dni:form.dni, fecha_nacimiento:form.fecha_nacimiento||null, sexo:form.sexo,
     }]);
     if(dbErr){setMsg("Error DB: "+dbErr.message);}
-    else{setMsg(`✓ Usuario creado: ${email} (${rol})`); setEmail(""); setNombre(""); setDeportes([]); setUsuarioProf("");}
+    else{setMsg(`✓ Usuario creado: ${form.nombre}`); setForm({nombre:"",email:"",password:"12345678",rol:"usuario",deportes:[],dni:"",fecha_nacimiento:"",sexo:"",apellido:""});}
     setLoading(false);
   };
 
@@ -120,20 +127,29 @@ function AdminPanel({onBack}){
       </div>
       <div className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
         <div className="flex flex-col gap-3">
+          {[["Nombre","nombre","text","Nombre"],["Apellido","apellido","text","Apellido"],["Email","email","email","email@ejemplo.com"],["DNI","dni","text","12345678"]].map(([label,key,type,ph])=>(
+            <div key={key}>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{label}</label>
+              <input type={type} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={ph}
+                className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+            </div>
+          ))}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Nombre</label>
-            <input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Nombre completo"
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Fecha de nacimiento</label>
+            <input type="date" value={form.fecha_nacimiento} onChange={e=>setForm({...form,fecha_nacimiento:e.target.value})}
               className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+            {form.fecha_nacimiento&&<p className="text-xs mt-1" style={{color:"#2E9CAB",fontFamily:"Inter"}}>Edad: {calcEdad(form.fecha_nacimiento)} años</p>}
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Email</label>
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@ejemplo.com"
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sexo</label>
+            <select value={form.sexo} onChange={e=>setForm({...form,sexo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+              <option value="">Sin especificar</option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No binario</option>
+            </select>
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Contraseña</label>
             <div className="relative mt-1">
-              <input type={showPass?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)}
+              <input type={showPass?"text":"password"} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}
                 className="w-full border rounded-lg px-3 py-2 text-sm pr-10" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
               <button type="button" onClick={()=>setShowPass(!showPass)} style={{position:"absolute",right:"8px",top:"8px",background:"none",border:"none",cursor:"pointer"}}>
                 {showPass?<EyeOff size={16} color="#8A99A3"/>:<Eye size={16} color="#8A99A3"/>}
@@ -142,40 +158,199 @@ function AdminPanel({onBack}){
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label>
-            <select value={rol} onChange={e=>setRol(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
-              <option value="usuario">Alumno</option>
-              <option value="profesor">Profesor</option>
-              <option value="secretaria">Secretaría</option>
-              <option value="admin">Admin</option>
+            <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="secretaria">Secretaría</option><option value="admin">Admin</option>
             </select>
           </div>
-          {rol==="profesor"&&(
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Usuario profesor (para asignar clases)</label>
-              <input value={usuarioProf} onChange={e=>setUsuarioProf(e.target.value)} placeholder="ej: marina"
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
-            </div>
-          )}
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Deportes</label>
             <div className="grid grid-cols-2 gap-2">
-              {opDeportes.map(d=>{
-                const s=SPORTS.find(sp=>sp.id===d);
-                return(
-                  <button key={d} type="button" onClick={()=>toggleDep(d)}
-                    className="p-2 rounded-xl text-sm font-semibold"
-                    style={{background:deportes.includes(d)?s?.color:"#F1F3F4",color:deportes.includes(d)?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
-                    {s?.emoji} {s?.name}
-                  </button>
-                );
-              })}
+              {opDep.map(d=>{const s=SPORTS.find(sp=>sp.id===d);return(
+                <button key={d} type="button" onClick={()=>toggleDep(d)}
+                  className="p-2 rounded-xl text-sm font-semibold"
+                  style={{background:form.deportes.includes(d)?s?.color:"#F1F3F4",color:form.deportes.includes(d)?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+                  {s?.emoji} {s?.name}
+                </button>
+              );})}
             </div>
           </div>
-          <button onClick={crearUsuario} disabled={loading} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+          <button onClick={crear} disabled={loading} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
             {loading?"Creando...":"Crear usuario"}
           </button>
         </div>
         {msg&&<p className="mt-3 p-2 text-sm rounded-lg" style={{background:"#E4F2F3",color:"#0B3D4C",fontFamily:"Inter"}}>{msg}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ── EDITAR ALUMNO (Admin/Secretaria) ── */
+function EditarAlumno({alumno,onSave,onBack}){
+  const [form,setForm]=useState({
+    nombre:alumno.nombre||"", apellido:alumno.apellido||"",
+    dni:alumno.dni||"", fecha_nacimiento:alumno.fecha_nacimiento||"",
+    sexo:alumno.sexo||"", deportes:alumno.deportes?alumno.deportes.split(";"):[], rol:alumno.rol||"usuario",
+  });
+  const [saving,setSaving]=useState(false);
+  const [msg,setMsg]=useState("");
+  const opDep=["natacion","voley","handball","matro"];
+  const toggleDep=(d)=>setForm(prev=>({...prev,deportes:prev.deportes.includes(d)?prev.deportes.filter(x=>x!==d):[...prev.deportes,d]}));
+
+  const save=async()=>{
+    setSaving(true);
+    const {error}=await supabase.from("usuarios").update({
+      nombre:form.nombre, apellido:form.apellido, dni:form.dni,
+      fecha_nacimiento:form.fecha_nacimiento||null, sexo:form.sexo,
+      deportes:form.deportes.join(";"), rol:form.rol,
+    }).eq("id",alumno.id);
+    if(error)setMsg("Error: "+error.message);
+    else{setMsg("✓ Guardado"); onSave({...alumno,...form,deportes:form.deportes.join(";")});}
+    setSaving(false);
+  };
+
+  return(
+    <div className="px-4 pt-4 pb-24">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"#2E9CAB",fontFamily:"Inter",fontSize:"14px"}}>← Volver</button>
+        <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Editar alumno</h2>
+      </div>
+      <div className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+        <div className="flex flex-col gap-3">
+          {[["Nombre","nombre"],["Apellido","apellido"],["DNI","dni"]].map(([label,key])=>(
+            <div key={key}>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{label}</label>
+              <input value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}
+                className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+            </div>
+          ))}
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Fecha de nacimiento</label>
+            <input type="date" value={form.fecha_nacimiento} onChange={e=>setForm({...form,fecha_nacimiento:e.target.value})}
+              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+            {form.fecha_nacimiento&&<p className="text-xs mt-1" style={{color:"#2E9CAB",fontFamily:"Inter"}}>Edad: {calcEdad(form.fecha_nacimiento)} años</p>}
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sexo</label>
+            <select value={form.sexo} onChange={e=>setForm({...form,sexo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+              <option value="">Sin especificar</option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No binario</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label>
+            <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="secretaria">Secretaría</option><option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Deportes asignados</label>
+            <div className="grid grid-cols-2 gap-2">
+              {opDep.map(d=>{const s=SPORTS.find(sp=>sp.id===d);return(
+                <button key={d} type="button" onClick={()=>toggleDep(d)}
+                  className="p-2 rounded-xl text-sm font-semibold"
+                  style={{background:form.deportes.includes(d)?s?.color:"#F1F3F4",color:form.deportes.includes(d)?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+                  {s?.emoji} {s?.name}
+                </button>
+              );})}
+            </div>
+          </div>
+          <button onClick={save} disabled={saving} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+            {saving?"Guardando...":"Guardar cambios"}
+          </button>
+        </div>
+        {msg&&<p className="mt-3 p-2 text-sm rounded-lg" style={{background:"#E4F2F3",color:"#0B3D4C",fontFamily:"Inter"}}>{msg}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ── PERFIL ── */
+function PerfilView({profile,users,setUsers,role}){
+  const canEdit=role==="secretaria"||role==="admin";
+  const [editing,setEditing]=useState(false);
+  const fullUser=users.find(u=>u.id===profile.id)||profile;
+  const [form,setForm]=useState({nombre:fullUser.nombre||"",apellido:fullUser.apellido||"",dni:fullUser.dni||"",fecha_nacimiento:fullUser.fecha_nacimiento||"",sexo:fullUser.sexo||""});
+  const [saving,setSaving]=useState(false);
+  const [msg,setMsg]=useState("");
+
+  const save=async()=>{
+    setSaving(true);
+    const {error}=await supabase.from("usuarios").update({...form,fecha_nacimiento:form.fecha_nacimiento||null}).eq("id",profile.id);
+    if(error)setMsg("Error: "+error.message);
+    else{setMsg("✓ Perfil actualizado"); setUsers(prev=>prev.map(u=>u.id===profile.id?{...u,...form}:u)); setEditing(false);}
+    setSaving(false);
+  };
+
+  const edad=calcEdad(fullUser.fecha_nacimiento);
+  const sexoLabel={M:"Masculino",F:"Femenino",X:"No binario"};
+  const roleLabel={usuario:"Alumno",profesor:"Profesor",secretaria:"Secretaría",admin:"Admin"};
+
+  return(
+    <div className="px-4 pt-4 pb-24">
+      <h2 className="font-semibold mb-3" style={{color:"#33414A",fontFamily:"Inter"}}>Mi perfil</h2>
+      <div className="rounded-2xl p-5 mb-3" style={{background:"#0B3D4C"}}>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mb-3 mx-auto" style={{background:"rgba(255,255,255,0.15)",color:"#F7F5EF",fontFamily:"Fraunces"}}>
+          {(fullUser.nombre||"?")[0]}
+        </div>
+        <p className="text-center font-semibold text-lg" style={{color:"#F7F5EF",fontFamily:"Fraunces"}}>{fullUser.nombre} {fullUser.apellido}</p>
+        <p className="text-center text-sm" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{fullUser.usuario}</p>
+        <div className="flex justify-center mt-2">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{background:"rgba(242,194,48,0.2)",color:"#F2C230",fontFamily:"Inter"}}>{roleLabel[fullUser.rol]||fullUser.rol}</span>
+        </div>
+      </div>
+
+      <div className="rounded-2xl p-4 mb-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+        {editing?(
+          <div className="flex flex-col gap-3">
+            {[["Nombre","nombre"],["Apellido","apellido"],["DNI","dni"]].map(([label,key])=>(
+              <div key={key}>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{label}</label>
+                <input value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}
+                  className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+              </div>
+            ))}
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Fecha de nacimiento</label>
+              <input type="date" value={form.fecha_nacimiento} onChange={e=>setForm({...form,fecha_nacimiento:e.target.value})}
+                className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}/>
+              {form.fecha_nacimiento&&<p className="text-xs mt-1" style={{color:"#2E9CAB",fontFamily:"Inter"}}>Edad: {calcEdad(form.fecha_nacimiento)} años</p>}
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sexo</label>
+              <select value={form.sexo} onChange={e=>setForm({...form,sexo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+                <option value="">Sin especificar</option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No binario</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={save} disabled={saving} className="flex-1 text-white text-sm font-semibold rounded-lg py-2" style={{background:"#0B3D4C",border:"none",cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
+              <button onClick={()=>setEditing(false)} className="flex-1 text-sm font-semibold rounded-lg py-2" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer"}}>Cancelar</button>
+            </div>
+            {msg&&<p className="text-xs p-2 rounded-lg" style={{background:"#E4F2F3",color:"#0B3D4C",fontFamily:"Inter"}}>{msg}</p>}
+          </div>
+        ):(
+          <>
+            <div className="flex flex-col gap-3">
+              {[
+                ["Nombre completo",`${fullUser.nombre||""} ${fullUser.apellido||""}`.trim()],
+                ["DNI",fullUser.dni||"—"],
+                ["Fecha de nacimiento",fullUser.fecha_nacimiento||"—"],
+                ["Edad",edad?`${edad} años`:"—"],
+                ["Sexo",sexoLabel[fullUser.sexo]||"—"],
+                ["Email",fullUser.usuario||"—"],
+              ].map(([label,val])=>(
+                <div key={label} className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}>
+                  <p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{label}</p>
+                  <p className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{val}</p>
+                </div>
+              ))}
+              {fullUser.deportes&&(
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {fullUser.deportes.split(";").map(d=>{const s=SPORTS.find(sp=>sp.id===d.trim());return s?(<span key={d} className="text-xs font-semibold px-2 py-1 rounded-full" style={{background:s.color+"22",color:s.color,fontFamily:"Inter"}}>{s.emoji} {s.name}</span>):null;})}
+                </div>
+              )}
+            </div>
+            {canEdit&&<button onClick={()=>setEditing(true)} className="w-full text-sm font-semibold rounded-lg py-2 mt-4" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>✏️ Editar perfil</button>}
+          </>
+        )}
       </div>
     </div>
   );
@@ -208,7 +383,7 @@ function Header({profile,title,onLogout,pendingCount,onBell}){
           </button>
         </div>
       </div>
-      <p className="relative z-10 text-sm mt-1" style={{color:"#F2C230",fontFamily:"Inter"}}>{profile.nombre}</p>
+      <p className="relative z-10 text-sm mt-1" style={{color:"#F2C230",fontFamily:"Inter"}}>{profile.nombre} {profile.apellido||""}</p>
       {(profile.rol==="usuario"||profile.rol==="profesor")&&(
         <p className="relative z-10 text-xs mt-0.5" style={{color:"#7FA8B3",fontFamily:"Inter"}}>
           {DIAS_ES[now.getDay()]} {now.getDate()} de {MESES_ES[now.getMonth()]} · {String(now.getHours()).padStart(2,"0")}:{String(now.getMinutes()).padStart(2,"0")}
@@ -324,13 +499,7 @@ function ScheduleView({schedule,setSchedule,sport,role,myClaseIds,addLog,userNam
   };
 
   if(role==="usuario"&&items.length===0){
-    return(
-      <div className="px-4 pt-10 pb-24 text-center">
-        <p className="text-4xl mb-3">📭</p>
-        <p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p>
-        <p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría para inscribirte.</p>
-      </div>
-    );
+    return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría para inscribirte.</p></div>);
   }
 
   return(
@@ -407,24 +576,14 @@ function RequestsView({requests,setRequests,sport,role,userName}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({from:"",to:""});
   const [saving,setSaving]=useState(false);
-
-  const filtered=canManage
-    ?requests.filter(r=>r.deporte===sport)
-    :requests.filter(r=>r.deporte===sport&&r.usuario===userName);
-
-  const update=async(id,estado)=>{
-    await supabase.from("solicitudes").update({estado}).eq("id",id);
-    setRequests(prev=>prev.map(r=>r.id===id?{...r,estado}:r));
-  };
-
+  const filtered=canManage?requests.filter(r=>r.deporte===sport):requests.filter(r=>r.deporte===sport&&r.usuario===userName);
+  const update=async(id,estado)=>{await supabase.from("solicitudes").update({estado}).eq("id",id);setRequests(prev=>prev.map(r=>r.id===id?{...r,estado}:r));};
   const create=async()=>{
-    if(!form.from||!form.to)return;
-    setSaving(true);
+    if(!form.from||!form.to)return; setSaving(true);
     const {data}=await supabase.from("solicitudes").insert([{usuario:userName,deporte:sport,desde:form.from,hasta:form.to,estado:"pendiente"}]).select().single();
     if(data)setRequests(prev=>[...prev,data]);
     setForm({from:"",to:""}); setShowForm(false); setSaving(false);
   };
-
   const statusTone={pendiente:"yellow",aprobado:"green",rechazado:"orange"};
   return(
     <div className="px-4 pt-4 pb-24">
@@ -471,20 +630,13 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,userName}
   const sportList=canManage?SPORTS:SPORTS.filter(s=>mySports.includes(s.id));
   const sportData=sportList.find(s=>s.id===selDep)||sportList[0];
   const allComp=canManage&&selDep==="todos"?comprobantes:comprobantes.filter(c=>c.deporte===selDep);
-
   const handleFile=async(e)=>{
     const f=e.target.files[0]; if(!f)return;
     setFileName(f.name); setUploaded(true);
     const {data}=await supabase.from("comprobantes").insert([{usuario:userName,deporte:sport,fecha:new Date().toLocaleDateString(),archivo:f.name,estado:"pendiente"}]).select().single();
     if(data)setComprobantes(prev=>[...prev,data]);
   };
-
-  const approve=async(id,estado)=>{
-    await supabase.from("comprobantes").update({estado}).eq("id",id);
-    setComprobantes(prev=>prev.map(c=>c.id===id?{...c,estado}:c));
-  };
-
-  if(!sportData&&!canManage)return<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">🔒</p><p style={{color:"#33414A",fontFamily:"Inter"}}>No tenés acceso a este deporte.</p></div>;
+  const approve=async(id,estado)=>{await supabase.from("comprobantes").update({estado}).eq("id",id);setComprobantes(prev=>prev.map(c=>c.id===id?{...c,estado}:c));};
 
   return(
     <div className="px-4 pt-4 pb-24">
@@ -494,8 +646,7 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,userName}
           {sportList.length>1&&(
             <div className="flex gap-2 overflow-x-auto mb-3" style={{scrollbarWidth:"none"}}>
               {sportList.map(s=>(
-                <button key={s.id} onClick={()=>setSelDep(s.id)}
-                  className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
+                <button key={s.id} onClick={()=>setSelDep(s.id)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
                   style={{background:selDep===s.id?s.color:"#fff",color:selDep===s.id?"#fff":"#33414A",border:`1px solid ${selDep===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
                   {s.emoji} {s.name}
                 </button>
@@ -506,25 +657,16 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,userName}
             <p className="text-xs uppercase tracking-wide mb-1" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Alias para transferencia</p>
             <div className="flex items-center justify-between">
               <span className="text-base" style={{color:"#F7F5EF",fontFamily:"IBM Plex Mono"}}>{sportData.alias}</span>
-              <button onClick={()=>{navigator.clipboard?.writeText(sportData.alias);setCopied(true);setTimeout(()=>setCopied(false),1500);}}
-                className="w-9 h-9 rounded-full flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"none",cursor:"pointer"}}>
-                <Copy size={15} color="#F7F5EF"/>
-              </button>
+              <button onClick={()=>{navigator.clipboard?.writeText(sportData.alias);setCopied(true);setTimeout(()=>setCopied(false),1500);}} className="w-9 h-9 rounded-full flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"none",cursor:"pointer"}}><Copy size={15} color="#F7F5EF"/></button>
             </div>
             {copied&&<p className="text-xs mt-2" style={{color:"#F2C230",fontFamily:"Inter"}}>✓ Alias copiado</p>}
           </div>
           <div className="rounded-2xl p-5 mb-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
             <p className="text-sm font-semibold mb-1" style={{color:"#33414A",fontFamily:"Inter"}}>Subí tu comprobante</p>
+            <p className="text-xs mb-3" style={{color:"#8A99A3",fontFamily:"Inter"}}>El nombre del archivo queda registrado en el sistema.</p>
             {!uploaded
-              ?<label className="rounded-xl py-6 flex flex-col items-center gap-2 cursor-pointer" style={{border:"2px dashed #2E9CAB",color:"#2E9CAB",display:"flex"}}>
-                  <Upload size={22}/><span className="text-sm font-semibold" style={{fontFamily:"Inter"}}>Seleccioná un archivo</span>
-                  <input type="file" className="hidden" onChange={handleFile}/>
-                </label>
-              :<div className="rounded-xl py-4 flex flex-col items-center gap-1.5" style={{background:"#E1F0E3"}}>
-                  <Check size={20} color="#2C6E31"/>
-                  <span className="text-sm font-semibold" style={{color:"#2C6E31",fontFamily:"Inter"}}>Cargado: {fileName}</span>
-                  <span className="text-xs" style={{color:"#5A9060",fontFamily:"Inter"}}>Pendiente de revisión</span>
-                </div>
+              ?<label className="rounded-xl py-6 flex flex-col items-center gap-2 cursor-pointer" style={{border:"2px dashed #2E9CAB",color:"#2E9CAB",display:"flex"}}><Upload size={22}/><span className="text-sm font-semibold" style={{fontFamily:"Inter"}}>Seleccioná un archivo</span><input type="file" className="hidden" onChange={handleFile}/></label>
+              :<div className="rounded-xl py-4 flex flex-col items-center gap-1.5" style={{background:"#E1F0E3"}}><Check size={20} color="#2C6E31"/><span className="text-sm font-semibold" style={{color:"#2C6E31",fontFamily:"Inter"}}>Cargado: {fileName}</span><span className="text-xs" style={{color:"#5A9060",fontFamily:"Inter"}}>Pendiente de revisión</span></div>
             }
           </div>
         </>
@@ -533,8 +675,7 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,userName}
         <>
           <div className="flex gap-2 overflow-x-auto mb-3" style={{scrollbarWidth:"none"}}>
             {[{id:"todos",name:"Todos",emoji:"📋",color:"#0B3D4C"},...SPORTS].map(s=>(
-              <button key={s.id} onClick={()=>setSelDep(s.id)}
-                className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
+              <button key={s.id} onClick={()=>setSelDep(s.id)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{background:selDep===s.id?s.color:"#fff",color:selDep===s.id?"#fff":"#33414A",border:`1px solid ${selDep===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
                 {s.emoji} {s.name}
               </button>
@@ -571,9 +712,8 @@ function AttendanceView({schedule,sport,inscripciones,users}){
   const [attendance,setAttendance]=useState({});
   const sel=selSession||(sessions[0]?.id||null);
   const session=sessions.find(s=>s.id===sel)||sessions[0];
-  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario||u.id===i.usuario_id);return u?u.nombre:i.usuario;});
+  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?`${u.nombre}${u.apellido?" "+u.apellido:""}`:i.usuario;});
   const toggle=(who)=>setAttendance(prev=>({...prev,[sel+"_"+who]:!prev[sel+"_"+who]}));
-
   return(
     <div className="px-4 pt-4 pb-24">
       <h2 className="font-semibold mb-3" style={{color:"#33414A",fontFamily:"Inter"}}>Asistencia</h2>
@@ -585,7 +725,7 @@ function AttendanceView({schedule,sport,inscripciones,users}){
           </button>
         ))}
       </div>
-      {!session?<p className="text-sm text-center py-8" style={{color:"#8A99A3"}}>No hay clases para este deporte.</p>:(
+      {!session?<p className="text-sm text-center py-8" style={{color:"#8A99A3"}}>No hay clases.</p>:(
         <>
           <div className="rounded-2xl p-4 mb-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
             <p className="text-xs uppercase tracking-wide font-semibold mb-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Profesor/a</p>
@@ -622,11 +762,9 @@ function ProfesorView({schedule,inscripciones,users,userName}){
   const [attendance,setAttendance]=useState({});
   const sel=selClass||(myClasses[0]?.id||null);
   const session=myClasses.find(s=>s.id===sel)||myClasses[0];
-  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?u.nombre:i.usuario;});
+  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?`${u.nombre}${u.apellido?" "+u.apellido:""}`:i.usuario;});
   const toggle=(who)=>setAttendance(prev=>({...prev,[sel+"_"+who]:!prev[sel+"_"+who]}));
-
   if(myClasses.length===0)return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas</p></div>);
-
   return(
     <div className="px-4 pt-4 pb-24">
       <div className="flex gap-2 mb-4">
@@ -639,23 +777,14 @@ function ProfesorView({schedule,inscripciones,users,userName}){
       </div>
       {view==="clases"&&(
         <div className="flex flex-col gap-2.5">
-          {myClasses.map(it=>{
-            const sport=SPORTS.find(s=>s.id===it.deporte);
-            const nextDate=nextDateForDay(it.dia);
-            return(
-              <div key={it.id} className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-                <div className="flex items-center gap-2 mb-2"><span className="text-lg">{sport?.emoji}</span><span className="text-sm font-bold" style={{color:"#33414A",fontFamily:"Inter"}}>{sport?.name}</span></div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{DAY_LABELS[it.dia]||it.dia}</span>
-                  <span className="text-sm" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{it.hora}</span>
-                </div>
-                <p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar}</p>
-                <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg" style={{background:"#FDF3D6",display:"inline-flex"}}>
-                  <Clock size={12} color="#8A6A0A"/><span className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>Próxima: {formatShortDate(nextDate)}</span>
-                </div>
-              </div>
-            );
-          })}
+          {myClasses.map(it=>{const sport=SPORTS.find(s=>s.id===it.deporte);const nextDate=nextDateForDay(it.dia);return(
+            <div key={it.id} className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+              <div className="flex items-center gap-2 mb-2"><span className="text-lg">{sport?.emoji}</span><span className="text-sm font-bold" style={{color:"#33414A",fontFamily:"Inter"}}>{sport?.name}</span></div>
+              <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{DAY_LABELS[it.dia]||it.dia}</span><span className="text-sm" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{it.hora}</span></div>
+              <p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar}</p>
+              <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg" style={{background:"#FDF3D6",display:"inline-flex"}}><Clock size={12} color="#8A6A0A"/><span className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>Próxima: {formatShortDate(nextDate)}</span></div>
+            </div>
+          );})}
         </div>
       )}
       {view==="asistencia"&&(
@@ -670,9 +799,7 @@ function ProfesorView({schedule,inscripciones,users,userName}){
           </div>
           {session&&(
             <>
-              <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg" style={{background:"#FDF3D6",display:"inline-flex"}}>
-                <Clock size={12} color="#8A6A0A"/><span className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>Próxima: {formatShortDate(nextDateForDay(session.dia))}</span>
-              </div>
+              <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg" style={{background:"#FDF3D6",display:"inline-flex"}}><Clock size={12} color="#8A6A0A"/><span className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>Próxima: {formatShortDate(nextDateForDay(session.dia))}</span></div>
               <p className="text-xs uppercase tracking-wide font-semibold mb-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Alumnos</p>
               {alumnosEnClase.length===0&&<p className="text-sm text-center py-4" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos inscriptos.</p>}
               <div className="flex flex-col gap-2">
@@ -698,60 +825,46 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
   const canEdit=role==="secretaria"||role==="admin";
   const now=new Date();
   const mesLabel=MESES_LABEL[now.getMonth()];
-  const anioActual=now.getFullYear();
   const alumnos=canEdit?users.filter(u=>u.rol==="usuario"):[];
   const [selected,setSelected]=useState(canEdit?(alumnos[0]?.usuario||""):userName);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState({});
   const [saving,setSaving]=useState(false);
-
   const rev=revisiones.find(r=>r.usuario===selected)||{usuario:selected,rev1:"",rev2:"",apto:""};
   const startEdit=()=>{setDraft({...rev,usuario:selected});setEditing(true);};
-
   const saveEdit=async()=>{
     setSaving(true);
     const exists=revisiones.find(r=>r.usuario===selected);
-    if(exists){
-      await supabase.from("revisiones").update({rev1:draft.rev1,rev2:draft.rev2,apto:draft.apto}).eq("usuario",selected);
-      setRevisiones(prev=>prev.map(r=>r.usuario===selected?{...r,...draft}:r));
-    } else {
-      const {data}=await supabase.from("revisiones").insert([{...draft}]).select().single();
-      if(data)setRevisiones(prev=>[...prev,data]);
-    }
+    if(exists){await supabase.from("revisiones").update({rev1:draft.rev1,rev2:draft.rev2,apto:draft.apto}).eq("usuario",selected);setRevisiones(prev=>prev.map(r=>r.usuario===selected?{...r,...draft}:r));}
+    else{const {data}=await supabase.from("revisiones").insert([{...draft}]).select().single();if(data)setRevisiones(prev=>[...prev,data]);}
     setSaving(false); setEditing(false);
   };
-
   const quickOk=async(usuario)=>{
     const exists=revisiones.find(r=>r.usuario===usuario);
-    if(exists){
-      await supabase.from("revisiones").update({apto:"si"}).eq("usuario",usuario);
-      setRevisiones(prev=>prev.map(r=>r.usuario===usuario?{...r,apto:"si"}:r));
-    } else {
-      const {data}=await supabase.from("revisiones").insert([{usuario,apto:"si",rev1:"",rev2:""}]).select().single();
-      if(data)setRevisiones(prev=>[...prev,data]);
-    }
+    if(exists){await supabase.from("revisiones").update({apto:"si"}).eq("usuario",usuario);setRevisiones(prev=>prev.map(r=>r.usuario===usuario?{...r,apto:"si"}:r));}
+    else{const {data}=await supabase.from("revisiones").insert([{usuario,apto:"si",rev1:"",rev2:""}]).select().single();if(data)setRevisiones(prev=>[...prev,data]);}
   };
-
   const aptoStyle=(apto)=>apto==="si"?{background:"#E1F0E3",color:"#2C6E31",label:"✓ Apto"}:apto==="no"?{background:"#FCE7DC",color:"#B4441C",label:"✗ No apto"}:{background:"#FDF3D6",color:"#8A6A0A",label:"Sin definir"};
 
   return(
     <div className="px-4 pt-4 pb-24">
       <h2 className="font-semibold mb-1" style={{color:"#33414A",fontFamily:"Inter"}}>Revisión Médica</h2>
-      <p className="text-sm mb-3" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} {anioActual}</p>
+      <p className="text-sm mb-3" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} {now.getFullYear()}</p>
       {canEdit&&alumnos.length>0&&(
         <div className="rounded-2xl p-4 mb-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-          <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Estado rápido</p>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Estado rápido — alumnos</p>
           <div className="flex flex-col gap-2">
             {alumnos.map(u=>{
               const r=revisiones.find(rv=>rv.usuario===u.usuario)||{apto:""};
               const st=aptoStyle(r.apto);
+              const nombreCompleto=`${u.nombre||""}${u.apellido?" "+u.apellido:""}`.trim();
               return(
-                <div key={u.usuario} className="flex items-center justify-between gap-2">
+                <div key={u.id||u.usuario} className="flex items-center justify-between gap-2">
                   <button onClick={()=>setSelected(u.usuario)} className="flex-1 flex items-center gap-2 text-left px-3 py-2 rounded-xl"
                     style={{background:selected===u.usuario?"#E4F2F3":"#F7F5EF",border:"none",cursor:"pointer"}}>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(u.nombre||"?")[0]}</div>
-                    <span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{u.nombre}</span>
-                    <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full" style={{...st,fontFamily:"Inter"}}>{st.label}</span>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(nombreCompleto||"?")[0]}</div>
+                    <span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{nombreCompleto||u.usuario}</span>
+                    <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:st.background,color:st.color,fontFamily:"Inter"}}>{st.label}</span>
                   </button>
                   {r.apto!=="si"&&<button onClick={()=>quickOk(u.usuario)} className="shrink-0 text-xs font-semibold px-2 py-1.5 rounded-lg" style={{background:"#E1F0E3",color:"#2C6E31",border:"none",cursor:"pointer"}}>✓ OK</button>}
                 </div>
@@ -785,14 +898,8 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
         ):(
           <>
             <div className="flex flex-col gap-3 mb-4">
-              <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}>
-                <div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Primera revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev1||"—"}</p></div>
-                <span style={{fontSize:"20px"}}>📋</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}>
-                <div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Segunda revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev2||"—"}</p></div>
-                <span style={{fontSize:"20px"}}>📋</span>
-              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}><div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Primera revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev1||"—"}</p></div><span style={{fontSize:"20px"}}>📋</span></div>
+              <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}><div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Segunda revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev2||"—"}</p></div><span style={{fontSize:"20px"}}>📋</span></div>
             </div>
             {canEdit&&<button onClick={startEdit} className="w-full text-sm font-semibold rounded-lg py-2" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>✏️ Editar revisión</button>}
           </>
@@ -803,14 +910,17 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
 }
 
 /* ── ALUMNOS ── */
-function AlumnosView({schedule,sport,users,inscripciones}){
+function AlumnosView({schedule,sport,users,inscripciones,setUsers}){
   const [view,setView]=useState("deporte");
   const [selDep,setSelDep]=useState("todos");
   const [selSession,setSelSession]=useState(null);
+  const [editingAlumno,setEditingAlumno]=useState(null);
   const sel=selSession||(schedule.filter(s=>s.deporte===(selDep==="todos"?s.deporte:selDep))[0]?.id||null);
   const sportAlumnos=selDep==="todos"?users.filter(u=>u.rol==="usuario"):users.filter(u=>u.rol==="usuario"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(selDep));
-  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?u.nombre:i.usuario;});
+  const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?{...u,displayName:`${u.nombre||""}${u.apellido?" "+u.apellido:""}`.trim()}:{displayName:i.usuario};});
   const depOpts=[{id:"todos",name:"Todos",emoji:"👥",color:"#0B3D4C"},...SPORTS];
+
+  if(editingAlumno)return<EditarAlumno alumno={editingAlumno} onSave={(updated)=>{setUsers(prev=>prev.map(u=>u.id===updated.id?{...u,...updated}:u));setEditingAlumno(null);}} onBack={()=>setEditingAlumno(null)}/>;
 
   return(
     <div className="px-4 pt-4 pb-24">
@@ -825,8 +935,7 @@ function AlumnosView({schedule,sport,users,inscripciones}){
       </div>
       <div className="flex gap-2 overflow-x-auto mb-4" style={{scrollbarWidth:"none"}}>
         {depOpts.map(s=>(
-          <button key={s.id} onClick={()=>{setSelDep(s.id);setSelSession(null);}}
-            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
+          <button key={s.id} onClick={()=>{setSelDep(s.id);setSelSession(null);}} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
             style={{background:selDep===s.id?s.color:"#fff",color:selDep===s.id?"#fff":"#33414A",border:`1px solid ${selDep===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
             {s.emoji} {s.name}
           </button>
@@ -835,12 +944,23 @@ function AlumnosView({schedule,sport,users,inscripciones}){
       {view==="deporte"?(
         <div className="flex flex-col gap-2">
           {sportAlumnos.length===0?<p className="text-sm text-center py-8" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos.</p>
-            :sportAlumnos.map(u=>(
-              <div key={u.id||u.usuario} className="rounded-xl p-3 flex items-center gap-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(u.nombre||"?")[0]}</div>
-                <div><span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{u.nombre}</span>{u.deportes&&<p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{u.deportes.split(";").join(" · ")}</p>}</div>
-              </div>
-            ))
+            :sportAlumnos.map(u=>{
+              const nombreCompleto=`${u.nombre||""}${u.apellido?" "+u.apellido:""}`.trim();
+              const edad=calcEdad(u.fecha_nacimiento);
+              return(
+                <div key={u.id||u.usuario} className="rounded-xl p-3 flex items-center gap-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(nombreCompleto||"?")[0]}</div>
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{nombreCompleto||u.usuario}</span>
+                    <div className="flex gap-2 mt-0.5 flex-wrap">
+                      {edad&&<span className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{edad} años</span>}
+                      {u.deportes&&u.deportes.split(";").map(d=>{const s=SPORTS.find(sp=>sp.id===d.trim());return s?<span key={d} className="text-xs" style={{color:s.color,fontFamily:"Inter"}}>{s.emoji}</span>:null;})}
+                    </div>
+                  </div>
+                  <button onClick={()=>setEditingAlumno(u)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>
+                </div>
+              );
+            })
           }
         </div>
       ):(
@@ -856,10 +976,10 @@ function AlumnosView({schedule,sport,users,inscripciones}){
             </div>
           )}
           {alumnosEnClase.length===0?<p className="text-sm text-center py-8" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos en esta clase.</p>
-            :<div className="flex flex-col gap-2">{alumnosEnClase.map(s=>(
-                <div key={s} className="rounded-xl p-3 flex items-center gap-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{s[0]}</div>
-                  <span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{s}</span>
+            :<div className="flex flex-col gap-2">{alumnosEnClase.map(a=>(
+                <div key={a.id||a.usuario} className="rounded-xl p-3 flex items-center gap-3" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(a.displayName||"?")[0]}</div>
+                  <span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{a.displayName}</span>
                 </div>
               ))}</div>
           }
@@ -879,8 +999,7 @@ function CalendarDashboard({schedule}){
       <h2 className="font-semibold mb-3" style={{color:"#33414A",fontFamily:"Inter"}}>Panel de disponibilidad</h2>
       <div className="flex gap-2 overflow-x-auto mb-4" style={{scrollbarWidth:"none"}}>
         {SPORTS.map(s=>(
-          <button key={s.id} onClick={()=>setActiveSport(s.id)}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
+          <button key={s.id} onClick={()=>setActiveSport(s.id)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
             style={{background:activeSport===s.id?s.color:"#fff",color:activeSport===s.id?"#fff":"#33414A",border:`1px solid ${activeSport===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
             {s.emoji} {s.name}
           </button>
@@ -894,16 +1013,13 @@ function CalendarDashboard({schedule}){
         {HOURS.map((hour,i)=>(
           <div key={hour} className="grid" style={{gridTemplateColumns:"52px repeat(6,1fr)",background:i%2===0?"#fff":"#F7F5EF",borderTop:"1px solid #E2E8ED"}}>
             <div className="p-1.5 text-center" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono",borderRight:"1px solid #E2E8ED",fontSize:"10px"}}>{hour}</div>
-            {DAYS.map(d=>{
-              const cls=items.find(it=>it.dia===d&&it.hora===hour);
-              return(
-                <div key={d} className="p-0.5 min-h-[30px]" style={{borderRight:"1px solid #E2E8ED"}}>
-                  {cls&&<div className="rounded px-1 py-0.5 leading-tight" style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport.color+"22",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"9px",fontWeight:600}}>
-                    {cls.profesor?.split(" ")[0]}<br/><span style={{fontFamily:"IBM Plex Mono",fontSize:"8px"}}>{cls.inscriptos}/{cls.cupo}</span>
-                  </div>}
-                </div>
-              );
-            })}
+            {DAYS.map(d=>{const cls=items.find(it=>it.dia===d&&it.hora===hour);return(
+              <div key={d} className="p-0.5 min-h-[30px]" style={{borderRight:"1px solid #E2E8ED"}}>
+                {cls&&<div className="rounded px-1 py-0.5 leading-tight" style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport.color+"22",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"9px",fontWeight:600}}>
+                  {cls.profesor?.split(" ")[0]}<br/><span style={{fontFamily:"IBM Plex Mono",fontSize:"8px"}}>{cls.inscriptos}/{cls.cupo}</span>
+                </div>}
+              </div>
+            );})}
           </div>
         ))}
       </div>
@@ -946,7 +1062,7 @@ export default function App(){
   const [users,setUsers]               = useState([]);
   const [loading,setLoading]           = useState(false);
   const [showNotif,setShowNotif]       = useState(false);
-  const [showAdmin,setShowAdmin]       = useState(false);
+  const [showCrear,setShowCrear]       = useState(false);
   const [log,setLog]                   = useState([]);
 
   useEffect(()=>{
@@ -972,15 +1088,15 @@ export default function App(){
 
   const addLog=(accion)=>{
     const now=new Date();
-    setLog(prev=>[...prev,{usuario:profile?.usuario||"",accion,hora:`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`}]);
+    setLog(prev=>[...prev,{usuario:profile?.nombre||profile?.usuario||"",accion,hora:`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`}]);
   };
 
   const handleLogout=async()=>{
     await supabase.auth.signOut();
-    setProfile(null); setSchedule([]); setRequests([]); setLog([]); setShowAdmin(false);
+    setProfile(null); setSchedule([]); setRequests([]); setLog([]); setShowCrear(false);
   };
 
-  if(!profile)return <Login onLogin={p=>{setProfile(p); setTab(p.rol==="admin"?"calendario":"horarios");}}/>;
+  if(!profile)return <Login onLogin={p=>{setProfile(p);setTab(p.rol==="admin"?"calendario":"horarios");}}/>;
 
   const role=profile.rol;
   const mySports=profile.deportes?profile.deportes.split(";").map(s=>s.trim()):SPORTS.map(s=>s.id);
@@ -997,27 +1113,27 @@ export default function App(){
   };
 
   const tabs=role==="usuario"
-    ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}]
+    ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
     :role==="profesor"
-    ?[{id:"profesor",label:"Mis clases",icon:CalendarIcon},{id:"medica",label:"Médica",icon:Stethoscope}]
+    ?[{id:"profesor",label:"Mis clases",icon:CalendarIcon},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
     :role==="secretaria"
-    ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"asistencia",label:"Asistencia",icon:ClipboardCheck},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}]
+    ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"asistencia",label:"Asistencia",icon:ClipboardCheck},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
     :[{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"log",label:"Log",icon:FileText}];
 
-  const titles={horarios:"Mis clases",solicitudes:"Solicitudes",pagos:"Pagos",asistencia:"Asistencia",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",profesor:"Mis clases",log:"Log de actividad"};
+  const titles={horarios:"Mis clases",solicitudes:"Solicitudes",pagos:"Pagos",asistencia:"Asistencia",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",profesor:"Mis clases",log:"Log de actividad",perfil:"Mi perfil"};
   const activeSport=mySports.includes(sport)?sport:(mySports[0]||"natacion");
 
-  if(showAdmin)return(
+  if(showCrear)return(
     <div className="min-h-screen max-w-2xl mx-auto" style={{background:"#F7F5EF"}}>
       <style>{FONT_IMPORT}</style>
       <div className="px-4 pt-5 pb-4 rounded-b-3xl" style={{background:"#0B3D4C"}}>
         <div className="flex items-center justify-between">
-          <div><p className="text-xs font-bold uppercase tracking-wider" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Admin</p><h1 className="text-xl" style={{color:"#F7F5EF",fontFamily:"Fraunces",fontWeight:600}}>Panel de usuarios</h1></div>
+          <div><p className="text-xs font-bold uppercase tracking-wider" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Admin</p><h1 className="text-xl" style={{color:"#F7F5EF",fontFamily:"Fraunces",fontWeight:600}}>Crear usuario</h1></div>
           <button onClick={handleLogout} className="w-9 h-9 rounded-full flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"none",cursor:"pointer"}}><LogOut size={16} color="#F7F5EF"/></button>
         </div>
         <p className="text-sm mt-1" style={{color:"#F2C230",fontFamily:"Inter"}}>{profile.nombre}</p>
       </div>
-      <AdminPanel onBack={()=>setShowAdmin(false)}/>
+      <CrearUsuario onBack={()=>setShowCrear(false)}/>
     </div>
   );
 
@@ -1025,17 +1141,14 @@ export default function App(){
     <div className="min-h-screen max-w-2xl mx-auto" style={{background:"#F7F5EF"}}>
       <style>{FONT_IMPORT}</style>
       <Header profile={profile} title={titles[tab]} onLogout={handleLogout} pendingCount={notifications.length} onBell={()=>setShowNotif(true)}/>
-
       {role==="admin"&&(
         <div className="px-4 pt-3">
-          <button onClick={()=>setShowAdmin(true)} className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl" style={{background:"#0B3D4C",color:"#F2C230",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+          <button onClick={()=>setShowCrear(true)} className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl" style={{background:"#0B3D4C",color:"#F2C230",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
             <ShieldCheck size={14}/> Crear usuario
           </button>
         </div>
       )}
-
-      {tab!=="calendario"&&tab!=="profesor"&&tab!=="log"&&<SportTabs sports={role==="usuario"?mySports:null} active={activeSport} onChange={setSport}/>}
-
+      {tab!=="calendario"&&tab!=="profesor"&&tab!=="log"&&tab!=="perfil"&&<SportTabs sports={role==="usuario"?mySports:null} active={activeSport} onChange={setSport}/>}
       {loading
         ?<div className="flex items-center justify-center py-16 gap-2" style={{color:"#8A99A3"}}><Loader size={20} className="animate-spin"/><span style={{fontFamily:"Inter"}}>Cargando datos...</span></div>
         :<>
@@ -1045,9 +1158,10 @@ export default function App(){
           {tab==="asistencia"  &&<AttendanceView schedule={schedule} sport={activeSport} inscripciones={inscripciones} users={users}/>}
           {tab==="calendario"  &&<CalendarDashboard schedule={schedule}/>}
           {tab==="medica"      &&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users}/>}
-          {tab==="alumnos"     &&<AlumnosView schedule={schedule} sport={activeSport} users={users} inscripciones={inscripciones}/>}
+          {tab==="alumnos"     &&<AlumnosView schedule={schedule} sport={activeSport} users={users} inscripciones={inscripciones} setUsers={setUsers}/>}
           {tab==="profesor"    &&<ProfesorView schedule={schedule} inscripciones={inscripciones} users={users} userName={profile.usuario}/>}
           {tab==="log"         &&<LogPanel log={log}/>}
+          {tab==="perfil"      &&<PerfilView profile={profile} users={users} setUsers={setUsers} role={role}/>}
         </>
       }
       <BottomNav tabs={tabs} active={tab} onChange={t=>setTab(t)}/>
