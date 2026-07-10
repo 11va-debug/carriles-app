@@ -219,6 +219,13 @@ function EditarAlumno({alumno,onSave,onBack}){
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"#2E9CAB",fontFamily:"Inter",fontSize:"14px"}}>← Volver</button>
         <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Editar alumno</h2>
       </div>
+      <div className="rounded-2xl p-3 mb-3 flex items-center gap-3" style={{background:"#E4F2F3",border:"1px solid #2E9CAB22"}}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{background:"#2E9CAB22",color:"#0B3D4C"}}>@</div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Usuario de login</p>
+          <p className="text-sm font-semibold" style={{color:"#0B3D4C",fontFamily:"IBM Plex Mono"}}>{alumno.usuario}</p>
+        </div>
+      </div>
       <div className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
         <div className="flex flex-col gap-3">
           {[["Nombre","nombre"],["Apellido","apellido"],["DNI","dni"]].map(([label,key])=>(
@@ -261,6 +268,17 @@ function EditarAlumno({alumno,onSave,onBack}){
           <button onClick={save} disabled={saving} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
             {saving?"Guardando...":"Guardar cambios"}
           </button>
+          <div className="mt-3 pt-3" style={{borderTop:"1px solid #E2E8ED"}}>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Contraseña</p>
+            <button onClick={async()=>{
+              const {error}=await supabase.auth.resetPasswordForEmail(alumno.usuario,{redirectTo:window.location.origin});
+              if(error)setMsg("Error: "+error.message);
+              else setMsg("✓ Email de restablecimiento enviado a "+alumno.usuario);
+            }} className="w-full text-sm font-semibold rounded-lg py-2.5" style={{background:"#FDF3D6",color:"#8A6A0A",border:"1px solid #F2C230",cursor:"pointer",fontFamily:"Inter"}}>
+              🔑 Enviar email para restablecer contraseña
+            </button>
+            <p className="text-xs mt-1.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>El alumno recibirá un link de un solo uso para elegir una nueva contraseña.</p>
+          </div>
         </div>
         {msg&&<p className="mt-3 p-2 text-sm rounded-lg" style={{background:"#E4F2F3",color:"#0B3D4C",fontFamily:"Inter"}}>{msg}</p>}
       </div>
@@ -970,10 +988,11 @@ function AlumnosView({schedule,sport,users,inscripciones,setUsers}){
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{(nombreCompleto||"?")[0]}</div>
                   <div className="flex-1">
                     <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{nombreCompleto||u.usuario}</span>
-                    <div className="flex gap-2 mt-0.5 flex-wrap">
+                    <div className="flex gap-2 mt-0.5 flex-wrap items-center">
                       {edad&&<span className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{edad} años</span>}
                       {u.deportes&&u.deportes.split(";").map(d=>{const s=SPORTS.find(sp=>sp.id===d.trim());return s?<span key={d} className="text-xs" style={{color:s.color,fontFamily:"Inter"}}>{s.emoji}</span>:null;})}
                     </div>
+                    <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono"}}>{u.usuario}</p>
                   </div>
                   <button onClick={()=>setEditingAlumno(u)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>
                 </div>
