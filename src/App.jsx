@@ -8,25 +8,31 @@ function Login({ onLogin }) {
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    // Usamos el sistema oficial de Supabase Auth
+    // 1. Intentamos entrar con el Auth de Supabase (email y password)
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
     });
 
     if (error) {
-      setError("Credenciales incorrectas o usuario no encontrado");
+      setError("Credenciales incorrectas");
       return;
     }
 
-    // Una vez logueado, traemos el rol desde la tabla 'usuarios'
-    const { data: userData } = await supabase
+    // 2. Si entró, buscamos en TU tabla 'usuarios' usando el ID
+    const { data: userData, error: dbError } = await supabase
       .from('usuarios')
       .select('rol, usuario')
       .eq('id', data.user.id)
       .single();
+
+    if (dbError || !userData) {
+      setError("Usuario no encontrado en la base de datos");
+      return;
+    }
       
-    onLogin({ ...data.user, rol: userData?.rol, usuario: userData?.usuario });
+    // 3. Guardamos el perfil con el rol que viene de TU tabla
+    onLogin({ ...data.user, rol: userData.rol, usuario: userData.usuario });
   }
 
   return (
