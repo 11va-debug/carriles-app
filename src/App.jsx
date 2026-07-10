@@ -108,10 +108,13 @@ function CrearUsuario({onBack}){
     setLoading(true); setMsg("Procesando...");
     const {data,error:authErr}=await supabase.auth.signUp({email:form.email,password:form.password});
     if(authErr){setMsg("Error Auth: "+authErr.message);setLoading(false);return;}
+    const deportesFinales = (form.rol==="staff"||form.rol==="admin")
+      ? SPORTS.map(s=>s.id).join(";")
+      : form.deportes.join(";");
     const {error:dbErr}=await supabase.from("usuarios").insert([{
       id:data.user.id, usuario:form.email, rol:form.rol,
       nombre:form.nombre, apellido:form.apellido,
-      deportes:form.deportes.join(";"),
+      deportes:deportesFinales,
       dni:form.dni, fecha_nacimiento:form.fecha_nacimiento||null, sexo:form.sexo,
     }]);
     if(dbErr){setMsg("Error DB: "+dbErr.message);}
@@ -159,9 +162,10 @@ function CrearUsuario({onBack}){
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label>
             <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
-              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="secretaria">Secretaría</option><option value="admin">Admin</option>
+              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="staff">Secretaría</option><option value="admin">Admin</option>
             </select>
           </div>
+          {form.rol!=="staff"&&form.rol!=="admin"&&(
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Deportes</label>
             <div className="grid grid-cols-2 gap-2">
@@ -174,6 +178,7 @@ function CrearUsuario({onBack}){
               );})}
             </div>
           </div>
+          )}
           <button onClick={crear} disabled={loading} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
             {loading?"Creando...":"Crear usuario"}
           </button>
@@ -238,7 +243,7 @@ function EditarAlumno({alumno,onSave,onBack}){
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label>
             <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
-              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="secretaria">Secretaría</option><option value="admin">Admin</option>
+              <option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="staff">Secretaría</option><option value="admin">Admin</option>
             </select>
           </div>
           <div>
@@ -265,7 +270,7 @@ function EditarAlumno({alumno,onSave,onBack}){
 
 /* ── PERFIL ── */
 function PerfilView({profile,users,setUsers,role}){
-  const canEdit=role==="secretaria"||role==="admin";
+  const canEdit=role==="staff"||role==="admin";
   const [editing,setEditing]=useState(false);
   const fullUser=users.find(u=>u.id===profile.id)||profile;
   const [form,setForm]=useState({nombre:fullUser.nombre||"",apellido:fullUser.apellido||"",dni:fullUser.dni||"",fecha_nacimiento:fullUser.fecha_nacimiento||"",sexo:fullUser.sexo||""});
@@ -282,7 +287,7 @@ function PerfilView({profile,users,setUsers,role}){
 
   const edad=calcEdad(fullUser.fecha_nacimiento);
   const sexoLabel={M:"Masculino",F:"Femenino",X:"No binario"};
-  const roleLabel={usuario:"Alumno",profesor:"Profesor",secretaria:"Secretaría",admin:"Admin"};
+  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Secretaría",admin:"Admin"};
 
   return(
     <div className="px-4 pt-4 pb-24">
@@ -359,7 +364,7 @@ function PerfilView({profile,users,setUsers,role}){
 /* ── HEADER ── */
 function Header({profile,title,onLogout,pendingCount,onBell}){
   const now=useClock();
-  const roleLabel={usuario:"Alumno",profesor:"Profesor",secretaria:"Secretaría",admin:"Admin"};
+  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Secretaría",admin:"Admin"};
   return(
     <div className="px-4 pt-5 pb-4 rounded-b-3xl relative overflow-hidden" style={{background:"#0B3D4C"}}>
       <style>{FONT_IMPORT}</style>
@@ -372,7 +377,7 @@ function Header({profile,title,onLogout,pendingCount,onBell}){
           <h1 className="text-xl" style={{color:"#F7F5EF",fontFamily:"Fraunces",fontWeight:600}}>{title}</h1>
         </div>
         <div className="flex items-center gap-2">
-          {(profile.rol==="secretaria"||profile.rol==="admin")&&(
+          {(profile.rol==="staff"||profile.rol==="admin")&&(
             <button onClick={onBell} className="w-9 h-9 rounded-full flex items-center justify-center relative" style={{background:"rgba(255,255,255,0.1)",border:"none",cursor:"pointer"}}>
               <Bell size={16} color="#F7F5EF"/>
               {pendingCount>0&&<span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{background:"#E8622C",color:"#fff"}}>{pendingCount}</span>}
@@ -464,7 +469,7 @@ function BottomNav({tabs,active,onChange}){
 
 /* ── SCHEDULE ── */
 function ScheduleView({schedule,setSchedule,sport,role,myClaseIds,addLog,userName}){
-  const canEdit=role==="secretaria"||role==="admin";
+  const canEdit=role==="staff"||role==="admin";
   const canCreate=role==="admin";
   const [editing,setEditing]=useState(null);
   const [creating,setCreating]=useState(false);
@@ -572,7 +577,7 @@ function EditClassForm({it,onSave,onDelete,onCancel,saving}){
 
 /* ── REQUESTS ── */
 function RequestsView({requests,setRequests,sport,role,userName}){
-  const canManage=role==="secretaria"||role==="admin";
+  const canManage=role==="staff"||role==="admin";
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({from:"",to:""});
   const [saving,setSaving]=useState(false);
@@ -626,7 +631,7 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,userName}
   const [copied,setCopied]=useState(false);
   const [fileName,setFileName]=useState("");
   const [selDep,setSelDep]=useState(sport);
-  const canManage=role==="secretaria"||role==="admin";
+  const canManage=role==="staff"||role==="admin";
   const sportList=canManage?SPORTS:SPORTS.filter(s=>mySports.includes(s.id));
   const sportData=sportList.find(s=>s.id===selDep)||sportList[0];
   const allComp=canManage&&selDep==="todos"?comprobantes:comprobantes.filter(c=>c.deporte===selDep);
@@ -822,10 +827,10 @@ function ProfesorView({schedule,inscripciones,users,userName}){
 
 /* ── REVISION MEDICA ── */
 function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
-  const canEdit=role==="secretaria"||role==="admin";
+  const canEdit=role==="staff"||role==="admin";
   const now=new Date();
   const mesLabel=MESES_LABEL[now.getMonth()];
-  const alumnos=canEdit?users.filter(u=>u.rol==="usuario"):[];
+  const alumnos=canEdit?users.filter(u=>u.rol==="usuario"&&u.id!==undefined):[];
   const [selected,setSelected]=useState(canEdit?(alumnos[0]?.usuario||""):userName);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState({});
@@ -1116,7 +1121,7 @@ export default function App(){
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
     :role==="profesor"
     ?[{id:"profesor",label:"Mis clases",icon:CalendarIcon},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
-    :role==="secretaria"
+    :role==="staff"
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"asistencia",label:"Asistencia",icon:ClipboardCheck},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
     :[{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"log",label:"Log",icon:FileText}];
 
