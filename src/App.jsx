@@ -837,8 +837,10 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
   const [saving,setSaving]=useState(false);
   const rev=revisiones.find(r=>r.usuario===selected)||{usuario:selected,rev1:"",rev2:"",apto:""};
   const startEdit=()=>{setDraft({...rev,usuario:selected});setEditing(true);};
+  const [saveError,setSaveError]=useState("");
   const saveEdit=async()=>{
-    setSaving(true);
+    if(!draft.rev1||!draft.rev2){setSaveError("Las dos fechas son obligatorias.");return;}
+    setSaveError(""); setSaving(true);
     const exists=revisiones.find(r=>r.usuario===selected);
     if(exists){await supabase.from("revisiones").update({rev1:draft.rev1,rev2:draft.rev2,apto:draft.apto}).eq("usuario",selected);setRevisiones(prev=>prev.map(r=>r.usuario===selected?{...r,...draft}:r));}
     else{const {data}=await supabase.from("revisiones").insert([{...draft}]).select().single();if(data)setRevisiones(prev=>[...prev,data]);}
@@ -879,11 +881,21 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
         </div>
       )}
       <div className="rounded-2xl p-5" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-        <div className="flex items-center gap-2 mb-4">
-          <Stethoscope size={18} color="#2E9CAB"/>
-          <span className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{selected}</span>
-          <span className="ml-auto text-xs font-bold px-3 py-1 rounded-full" style={{...aptoStyle(rev.apto),fontFamily:"Inter"}}>{aptoStyle(rev.apto).label}</span>
-        </div>
+        {/* Mostrar nombre si canEdit, o nada si es el propio alumno */}
+        {canEdit && (
+          <div className="flex items-center gap-2 mb-4">
+            <Stethoscope size={18} color="#2E9CAB"/>
+            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>
+              {(()=>{const u=alumnos.find(a=>a.usuario===selected); return u?`${u.nombre||""} ${u.apellido||""}`.trim():selected;})()}
+            </span>
+            <span className="ml-auto text-xs font-bold px-3 py-1 rounded-full" style={{...aptoStyle(rev.apto),fontFamily:"Inter"}}>{aptoStyle(rev.apto).label}</span>
+          </div>
+        )}
+        {!canEdit && (
+          <div className="flex items-center justify-end mb-4">
+            <span className="text-xs font-bold px-3 py-1 rounded-full" style={{...aptoStyle(rev.apto),fontFamily:"Inter"}}>{aptoStyle(rev.apto).label}</span>
+          </div>
+        )}
         {editing?(
           <>
             <div className="flex flex-col gap-2 mb-3">
@@ -895,9 +907,10 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
                 </select>
               </div>
             </div>
+            {saveError&&<p className="text-xs mb-2" style={{color:"#B4441C",fontFamily:"Inter"}}>⚠ {saveError}</p>}
             <div className="flex gap-2">
               <button onClick={saveEdit} disabled={saving} className="flex-1 text-white text-sm font-semibold rounded-lg py-2" style={{background:"#0B3D4C",border:"none",cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
-              <button onClick={()=>setEditing(false)} className="flex-1 text-sm font-semibold rounded-lg py-2" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer"}}>Cancelar</button>
+              <button onClick={()=>{setEditing(false);setSaveError("");}} className="flex-1 text-sm font-semibold rounded-lg py-2" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer"}}>Cancelar</button>
             </div>
           </>
         ):(
