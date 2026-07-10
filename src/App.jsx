@@ -1155,16 +1155,28 @@ export default function App(){
 
   // Detectar token de reset en la URL
   useEffect(()=>{
+    // Chequear hash inmediatamente al cargar
     const hash = window.location.hash;
-    if(hash.includes("type=recovery")||hash.includes("type=signup")){
+    if(hash.includes("type=recovery")){
       setIsReset(true);
+      return;
     }
-    // También manejar sesión activa por token
-    supabase.auth.onAuthStateChange((event)=>{
+
+    // Escuchar evento de Supabase Auth
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event, session)=>{
       if(event==="PASSWORD_RECOVERY"){
         setIsReset(true);
       }
     });
+
+    // Procesar el hash manualmente si tiene access_token
+    if(hash.includes("access_token")){
+      supabase.auth.getSession().then(({data:{session}})=>{
+        if(session) supabase.auth.setSession(session);
+      });
+    }
+
+    return ()=> subscription?.unsubscribe();
   },[]);
   const [tab,setTab]                   = useState("horarios");
   const [sport,setSport]               = useState("natacion");
