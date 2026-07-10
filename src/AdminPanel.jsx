@@ -3,15 +3,15 @@ import { supabase } from './lib/supabase';
 
 export default function AdminPanel() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('12345678');
+  const [password, setPassword] = useState('12345678'); // Contraseña predeterminada
   const [rol, setRol] = useState('usuario');
   const [mensaje, setMensaje] = useState('');
 
   async function crearUsuario() {
-    setMensaje('Creando usuario...');
-    
-    // 1. Crear el usuario en Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    setMensaje('Procesando...');
+
+    // 1. Intentar registrar en Auth
+    const { data, error: authError } = await supabase.auth.signUp({
       email: email,
       password: password,
     });
@@ -21,13 +21,12 @@ export default function AdminPanel() {
       return;
     }
 
-    // 2. Insertar el rol en la tabla 'usuarios'
-    // Asegúrate de que los nombres de columna coincidan con tu tabla real
+    // 2. Si Auth fue exitoso, insertar en tabla 'usuarios'
     const { error: dbError } = await supabase
       .from('usuarios')
       .insert([
         { 
-          id: authData.user.id, 
+          id: data.user.id, 
           usuario: email, 
           rol: rol, 
           nombre: email 
@@ -35,45 +34,25 @@ export default function AdminPanel() {
       ]);
 
     if (dbError) {
-      setMensaje('Error al asignar rol: ' + dbError.message);
+      setMensaje('Usuario creado en Auth, pero falló la DB: ' + dbError.message);
     } else {
-      setMensaje(`Éxito: ${email} creado como ${rol}`);
-      setEmail('');
+      setMensaje(`¡Éxito! Usuario: ${email} | Contraseña: ${password}`);
     }
   }
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md border border-gray-200">
-      <h2 className="text-xl font-bold mb-4">Administración: Crear Usuario</h2>
+    <div className="p-6 bg-white border rounded shadow">
+      <h2 className="text-xl font-bold mb-4">Crear Usuario</h2>
       <div className="flex flex-col gap-3">
-        <input 
-          className="border p-2 rounded" 
-          placeholder="Email / Usuario" 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)} 
-        />
-        <select 
-          className="border p-2 rounded" 
-          value={rol} 
-          onChange={(e) => setRol(e.target.value)}
-        >
+        <input className="border p-2" placeholder="Email (ej: usuario@mail.com)" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="border p-2" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <select className="border p-2" value={rol} onChange={(e) => setRol(e.target.value)}>
           <option value="usuario">Alumno</option>
-          <option value="profesor">Profesor</option>
-          <option value="staff">Staff</option>
           <option value="admin">Admin</option>
         </select>
-        <button 
-          onClick={crearUsuario} 
-          className="bg-green-600 text-white p-2 rounded hover:bg-green-700 transition"
-        >
-          Guardar Usuario
-        </button>
+        <button onClick={crearUsuario} className="bg-blue-600 text-white p-2">Guardar Usuario</button>
       </div>
-      {mensaje && (
-        <p className={`mt-4 text-sm font-medium ${mensaje.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>
-          {mensaje}
-        </p>
-      )}
+      {mensaje && <p className="mt-4 p-2 bg-gray-100 text-sm">{mensaje}</p>}
     </div>
   );
 }
