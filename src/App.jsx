@@ -7,8 +7,7 @@ import {
   Stethoscope, Users, FileText, Clock 
 } from "lucide-react";
 
-// --- (MANTÉN TODO TU CÓDIGO ORIGINAL AQUÍ: CONSTANTES, FONT_IMPORT, ETC.) ---
-// --- He abreviado el bloque de arriba para que sea legible, pega el tuyo original ---
+// --- (MANTÉN AQUÍ TUS CONSTANTES ORIGINALES: FONT_IMPORT, URLS, SPORTS, ETC.) ---
 
 export default function App() {
   const [profile, setProfile] = useState(null);
@@ -17,26 +16,17 @@ export default function App() {
   
   // ... (Tus otros estados: schedule, requests, etc.)
 
-  // --- REEMPLAZO DE FETCH POR SUPABASE ---
+  // --- LÓGICA DE CARGA ---
   useEffect(() => {
     if (!profile) return;
-    
-    async function fetchData() {
-      setLoading(true);
-      const { data: cls } = await supabase.from('clases').select('*');
-      const { data: reqs } = await supabase.from('solicitudes').select('*');
-      // ... (Agrega aquí el resto de tus cargas de datos usando await supabase.from('...').select('*'))
-      
-      setLoading(false);
-    }
-    fetchData();
+    // Aquí iría tu lógica de carga de datos original
   }, [profile]);
 
-  // --- LÓGICA DE TABS ---
+  // --- LÓGICA DE ROL Y TABS ---
   const role = profile?.rol;
+  const isSecretariaOrAdmin = role === "secretaria" || role === "admin";
   
-  // Agregamos el tab de Admin dinámicamente si el usuario es admin
-  const baseTabs = role === "usuario"
+  const tabs = role === "usuario"
     ? [{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}]
     : role === "profesor"
     ? [{id:"profesor",label:"Mis clases",icon:CalendarIcon},{id:"medica",label:"Médica",icon:Stethoscope}]
@@ -44,12 +34,21 @@ export default function App() {
     ? [{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Cambios",icon:ArrowLeftRight},{id:"asistencia",label:"Asistencia",icon:ClipboardCheck},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}]
     : [{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"log",label:"Log",icon:FileText}, {id:"admin_panel", label:"Admin", icon:Users}];
 
+  const titles = { horarios:"Mis clases",solicitudes:"Solicitudes",pagos:"Pagos",asistencia:"Asistencia",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",profesor:"Mis clases",log:"Log de actividad", admin_panel: "Administración" };
+
+  if (!profile) return <Login onLogin={p => setProfile(p)} />;
+
   return (
     <div className="min-h-screen max-w-2xl mx-auto" style={{ background:"#F7F5EF" }}>
       <style>{FONT_IMPORT}</style>
       
-      {/* HEADER y resto de lógica original */}
-      <Header profile={profile} ... />
+      <Header 
+        profile={profile} 
+        title={titles[tab]} 
+        onLogout={() => { setProfile(null); }} 
+        notifications={[]} 
+        onBell={() => {}} 
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-16 gap-2"><Loader className="animate-spin"/></div>
@@ -57,14 +56,14 @@ export default function App() {
         <>
           {tab === "admin_panel" && <AdminPanel />}
           {tab !== "admin_panel" && (
-             <>
-               {/* Aquí van todas tus llamadas originales a ScheduleView, RequestsView, etc. */}
-             </>
+             <div>
+                {/* Aquí renderizas tus vistas originales como lo hacías antes */}
+             </div>
           )}
         </>
       )}
 
-      <BottomNav tabs={baseTabs} active={tab} onChange={setTab}/>
+      <BottomNav tabs={tabs} active={tab} onChange={setTab}/>
     </div>
   );
 }
