@@ -3,36 +3,39 @@ import { supabase } from "./lib/supabase";
 import AdminPanel from "./AdminPanel";
 
 function Login({ onLogin }) {
-  const [usuarioInput, setUsuarioInput] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    // Buscamos al usuario en tu tabla "usuarios"
-    const { data: userData, error: dbError } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('usuario', usuarioInput) // Buscamos por la columna 'usuario'
-      .single();
+    // Usamos el sistema oficial de Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
 
-    if (dbError || !userData) {
-      setError("Usuario no encontrado.");
+    if (error) {
+      setError("Credenciales incorrectas o usuario no encontrado");
       return;
     }
 
-    // Si encontramos el usuario, validamos la contraseña 
-    // (Nota: Si usas Auth de Supabase, esto debería ser signInWithPassword, 
-    // pero si manejas las credenciales tú mismo, validamos aquí)
-    onLogin({ ...userData });
+    // Una vez logueado, traemos el rol desde la tabla 'usuarios'
+    const { data: userData } = await supabase
+      .from('usuarios')
+      .select('rol, usuario')
+      .eq('id', data.user.id)
+      .single();
+      
+    onLogin({ ...data.user, rol: userData?.rol, usuario: userData?.usuario });
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h2 className="mb-4 font-bold">Ingreso al Sistema</h2>
-      <input className="border p-2 mb-2" placeholder="Nombre de usuario" onChange={(e) => setUsuarioInput(e.target.value)} />
-      <input className="border p-2 mb-2" type="password" placeholder="Contraseña" onChange={(e) => setPassword(e.target.value)} />
-      <button onClick={handleLogin} className="bg-blue-600 text-white p-2 px-4 rounded">Ingresar</button>
-      {error && <p className="text-red-500 mt-2">{error}</p>}
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+      <h2 className="mb-4 font-bold text-xl">Ingreso al Sistema</h2>
+      <input className="border p-2 mb-2 w-full max-w-xs" placeholder="Email (Usuario)" onChange={(e) => setEmail(e.target.value)} />
+      <input className="border p-2 mb-2 w-full max-w-xs" type="password" placeholder="Contraseña" onChange={(e) => setPassword(e.target.value)} />
+      <button onClick={handleLogin} className="bg-blue-600 text-white p-2 px-4 rounded w-full max-w-xs">Ingresar</button>
+      {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
     </div>
   );
 }
@@ -45,15 +48,15 @@ export default function App() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <nav className="flex gap-4 p-4 border-b">
-        <button onClick={() => setTab("home")}>Home</button>
+      <nav className="flex gap-4 p-4 border-b bg-white">
+        <button onClick={() => setTab("home")} className="font-bold">Inicio</button>
         {profile.rol === 'admin' && (
-          <button onClick={() => setTab("admin")}>Admin</button>
+          <button onClick={() => setTab("admin")} className="text-red-600 font-bold">Admin</button>
         )}
       </nav>
 
       <main className="p-4">
-        {tab === "admin" ? <AdminPanel /> : <h1>Bienvenido {profile.usuario}</h1>}
+        {tab === "admin" ? <AdminPanel /> : <h1>Bienvenido, {profile.usuario}</h1>}
       </main>
     </div>
   );
