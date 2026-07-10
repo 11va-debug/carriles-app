@@ -15,7 +15,8 @@ const URL_USUARIOS    = `${SHEET_BASE}?gid=0&single=true&output=csv`;
 const URL_CLASES      = `${SHEET_BASE}?gid=725628139&single=true&output=csv`;
 const URL_SOLICITUDES = `${SHEET_BASE}?gid=2029079044&single=true&output=csv`;
 const URL_REVISIONES  = `${SHEET_BASE}?gid=1817774281&single=true&output=csv`;
-const URL_COMPROBANTES= `${SHEET_BASE}?gid=324277509&single=true&output=csv`;
+const URL_COMPROBANTES  = `${SHEET_BASE}?gid=324277509&single=true&output=csv`;
+const URL_INSCRIPCIONES = `${SHEET_BASE}?gid=491872981&single=true&output=csv`;
 
 const SPORTS = [
   { id: "natacion", name: "Natación",      emoji: "🏊", color: "#2E9CAB", alias: "natacion.carriles.pagos" },
@@ -227,13 +228,17 @@ function BottomNav({ tabs, active, onChange }) {
 }
 
 /* ── SCHEDULE ── */
-function ScheduleView({ schedule, sport, role, userSports, onEdit, onCreate }) {
+function ScheduleView({ schedule, sport, role, userSports, inscripciones, userName, onEdit, onCreate }) {
   const canEdit   = role==="secretaria"||role==="admin";
   const canCreate = role==="admin";
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ dia:"Lun", hora:"17:00", profesor:"", lugar:"", cupo:10 });
-  const items = schedule.filter(s => s.deporte===sport);
+
+  const myClaseIds = inscripciones.filter(i=>i.usuario===userName).map(i=>String(i.clase_id));
+  const items = role==="usuario"
+    ? schedule.filter(s => s.deporte===sport && myClaseIds.includes(String(s.id||s._idx)))
+    : schedule.filter(s => s.deporte===sport);
 
   if (role==="usuario" && !userSports.includes(sport)) {
     return (
@@ -568,12 +573,17 @@ function RevisionMedica({ revisiones, role, userName, onUpdate }) {
 }
 
 /* ── ALUMNOS (admin) ── */
-function AlumnosView({ schedule, sport, users }) {
+function AlumnosView({ schedule, sport, users, inscripciones }) {
   const [view, setView] = useState("clase");
   const sessions = schedule.filter(s=>s.deporte===sport);
   const [selSession, setSelSession] = useState(null);
-  const mockStudents = ["Juan Pérez","Sofía Díaz","Nico Alba","Carla Ruiz","Iván Soto"];
+  const sel = selSession||(sessions[0]?.id||sessions[0]?._idx);
+
   const sportAlumnos = users.filter(u=>u.rol==="usuario" && u.deportes && u.deportes.split(";").map(s=>s.trim()).includes(sport));
+
+  const alumnosEnClase = inscripciones
+    .filter(i=>String(i.clase_id)===String(sel))
+    .map(i=>{ const u=users.find(u=>u.usuario===i.usuario); return u?u.nombre:i.usuario; });
 
   return (
     <div className="px-4 pt-4 pb-24">
@@ -592,19 +602,22 @@ function AlumnosView({ schedule, sport, users }) {
             {sessions.map(s=>{const id=s.id||s._idx;return(
               <button key={id} onClick={()=>setSelSession(id)}
                 className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold"
-                style={{ background:selSession===id?"#0B3D4C":"#fff", color:selSession===id?"#fff":"#33414A", border:`1px solid ${selSession===id?"#0B3D4C":"#E2E8ED"}`, cursor:"pointer" }}>
+                style={{ background:sel===id?"#0B3D4C":"#fff", color:sel===id?"#fff":"#33414A", border:`1px solid ${sel===id?"#0B3D4C":"#E2E8ED"}`, cursor:"pointer" }}>
                 {DAY_LABELS[s.dia]||s.dia} {s.hora}
               </button>
             );})}
           </div>
-          <div className="flex flex-col gap-2">
-            {mockStudents.map(s=>(
-              <div key={s} className="rounded-xl p-3 flex items-center gap-3" style={{ background:"#fff", border:"1px solid #E2E8ED" }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ background:"#E4F2F3", color:"#0B3D4C" }}>{s[0]}</div>
-                <span className="text-sm" style={{ color:"#33414A", fontFamily:"Inter" }}>{s}</span>
+          {alumnosEnClase.length===0
+            ? <p className="text-sm text-center py-8" style={{ color:"#8A99A3", fontFamily:"Inter" }}>Sin alumnos inscriptos en esta clase.</p>
+            : <div className="flex flex-col gap-2">
+                {alumnosEnClase.map(s=>(
+                  <div key={s} className="rounded-xl p-3 flex items-center gap-3" style={{ background:"#fff", border:"1px solid #E2E8ED" }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ background:"#E4F2F3", color:"#0B3D4C" }}>{s[0]}</div>
+                    <span className="text-sm" style={{ color:"#33414A", fontFamily:"Inter" }}>{s}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+          }
         </>
       ) : (
         <div className="flex flex-col gap-2">
@@ -682,8 +695,9 @@ export default function App() {
   const [schedule, setSchedule]       = useState([]);
   const [requests, setRequests]       = useState([]);
   const [revisiones, setRevisiones]   = useState([]);
-  const [comprobantes, setComprobantes] = useState([]);
-  const [users, setUsers]             = useState([]);
+  const [comprobantes, setComprobantes]     = useState([]);
+  const [inscripciones, setInscripciones]   = useState([]);
+  const [users, setUsers]                   = useState([]);
   const [loading, setLoading]         = useState(false);
   const [showNotif, setShowNotif]     = useState(false);
   const [nextId, setNextId]           = useState(300);
@@ -697,12 +711,14 @@ export default function App() {
       fetchCSV(URL_REVISIONES),
       fetchCSV(URL_COMPROBANTES),
       fetchCSV(URL_USUARIOS),
-    ]).then(([cls,reqs,revs,comps,usrs]) => {
+      fetchCSV(URL_INSCRIPCIONES),
+    ]).then(([cls,reqs,revs,comps,usrs,inscs]) => {
       setSchedule(cls.map(c=>({...c,id:c.id||c._idx,cupo:+c.cupo||10,inscriptos:+c.inscriptos||0})));
       setRequests(reqs.map(r=>({...r,id:r.id||r._idx})));
       setRevisiones(revs);
       setComprobantes(comps.map(c=>({...c,id:c.id||c._idx})));
       setUsers(usrs);
+      setInscripciones(inscs);
       setLoading(false);
     }).catch(()=>setLoading(false));
   }, [profile]);
@@ -745,13 +761,13 @@ export default function App() {
         </div>
       ) : (
         <>
-          {tab==="horarios"    && <ScheduleView schedule={schedule} sport={sport} role={role} userSports={userSports} onEdit={handleEditSchedule} onCreate={handleCreateSchedule}/>}
+          {tab==="horarios"    && <ScheduleView schedule={schedule} sport={sport} role={role} userSports={userSports} inscripciones={inscripciones} userName={profile.usuario} onEdit={handleEditSchedule} onCreate={handleCreateSchedule}/>}
           {tab==="solicitudes" && <RequestsView requests={requests} sport={sport} role={role} userName={profile.usuario} onUpdate={handleUpdateRequest} onCreate={handleCreateRequest}/>}
           {tab==="pagos"       && <PaymentView sport={sport} role={role} comprobantes={comprobantes} onApprove={handleApproveComp}/>}
           {tab==="asistencia"  && <AttendanceView schedule={schedule} sport={sport}/>}
           {tab==="calendario"  && <CalendarDashboard schedule={schedule}/>}
           {tab==="medica"      && <RevisionMedica revisiones={revisiones} role={role} userName={profile.usuario} onUpdate={handleUpdateRev}/>}
-          {tab==="alumnos"     && <AlumnosView schedule={schedule} sport={sport} users={users}/>}
+          {tab==="alumnos"     && <AlumnosView schedule={schedule} sport={sport} users={users} inscripciones={inscripciones}/>}
         </>
       )}
       <BottomNav tabs={tabs} active={tab} onChange={t=>{setTab(t);}}/>
