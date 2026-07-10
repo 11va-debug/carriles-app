@@ -924,8 +924,11 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
   const rev=revisiones.find(r=>r.usuario===selected)||{usuario:selected,rev1:"",rev2:"",apto:""};
   const startEdit=()=>{setDraft({...rev,usuario:selected});setEditing(true);};
   const [saveError,setSaveError]=useState("");
+  const hoy = new Date();
+  const esSegundaFase = hoy.getDate() >= 18;
   const saveEdit=async()=>{
-    if(!draft.rev1||!draft.rev2){setSaveError("Las dos fechas son obligatorias.");return;}
+    if(!draft.rev1){setSaveError("La fecha de primera revisión es obligatoria.");return;}
+    if(esSegundaFase&&!draft.rev2){setSaveError("La fecha de segunda revisión es obligatoria a partir del día 18.");return;}
     setSaveError(""); setSaving(true);
     const exists=revisiones.find(r=>r.usuario===selected);
     if(exists){await supabase.from("revisiones").update({rev1:draft.rev1,rev2:draft.rev2,apto:draft.apto}).eq("usuario",selected);setRevisiones(prev=>prev.map(r=>r.usuario===selected?{...r,...draft}:r));}
@@ -986,7 +989,14 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
           <>
             <div className="flex flex-col gap-2 mb-3">
               <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Primera revisión</label><input type="date" value={draft.rev1} onChange={e=>setDraft({...draft,rev1:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/></div>
+              {esSegundaFase&&(
               <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Segunda revisión</label><input type="date" value={draft.rev2} onChange={e=>setDraft({...draft,rev2:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/></div>
+              )}
+              {!esSegundaFase&&(
+              <div className="p-3 rounded-xl" style={{background:"#FDF3D6"}}>
+                <p className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>⏳ Segunda revisión disponible a partir del día 18 del mes</p>
+              </div>
+              )}
               <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Estado</label>
                 <select value={draft.apto} onChange={e=>setDraft({...draft,apto:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
                   <option value="">Sin definir</option><option value="si">Apto</option><option value="no">No apto</option>
@@ -1003,7 +1013,10 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
           <>
             <div className="flex flex-col gap-3 mb-4">
               <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}><div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Primera revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev1||"—"}</p></div><span style={{fontSize:"20px"}}>📋</span></div>
-              <div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}><div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Segunda revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev2||"—"}</p></div><span style={{fontSize:"20px"}}>📋</span></div>
+              {esSegundaFase
+                ?<div className="flex items-center justify-between p-3 rounded-xl" style={{background:"#F7F5EF"}}><div><p className="text-xs uppercase font-semibold" style={{color:"#8A99A3",fontFamily:"Inter"}}>{mesLabel} — Segunda revisión</p><p className="text-sm font-semibold mt-0.5" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{rev.rev2||"—"}</p></div><span style={{fontSize:"20px"}}>📋</span></div>
+                :<div className="p-3 rounded-xl" style={{background:"#FDF3D6"}}><p className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>⏳ Segunda revisión disponible a partir del día 18 del mes</p></div>
+              }
             </div>
             {canEdit&&<button onClick={startEdit} className="w-full text-sm font-semibold rounded-lg py-2" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>✏️ Editar revisión</button>}
           </>
@@ -1013,18 +1026,119 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users}){
   );
 }
 
+/* ── GESTIONAR CLASES (alumno) ── */
+function GestionarClases({alumno,schedule,inscripciones,setInscripciones,onBack}){
+  const [saving,setSaving]=useState(false);
+  const [msg,setMsg]=useState("");
+
+  const mySports = alumno.deportes ? alumno.deportes.split(";").map(s=>s.trim()) : [];
+  const myClases = inscripciones.filter(i=>i.usuario===alumno.usuario);
+  const myClaseIds = myClases.map(i=>String(i.clase_id));
+
+  const isAssigned = (id) => myClaseIds.includes(String(id));
+
+  // Detectar si se pisa con otra clase del alumno
+  const getConflict = (clase) => {
+    const mySchedule = schedule.filter(s=>myClaseIds.includes(String(s.id)));
+    return mySchedule.find(s=>s.dia===clase.dia && s.hora===clase.hora && s.id!==clase.id);
+  };
+
+  const toggle = async(clase) => {
+    setSaving(true); setMsg("");
+    if(isAssigned(clase.id)){
+      // Desasignar
+      await supabase.from("inscripciones").delete().eq("usuario",alumno.usuario).eq("clase_id",clase.id);
+      setInscripciones(prev=>prev.filter(i=>!(i.usuario===alumno.usuario&&String(i.clase_id)===String(clase.id))));
+      setMsg(`✓ Removido de ${clase.dia} ${clase.hora}`);
+    } else {
+      // Verificar conflicto
+      const conflict = getConflict(clase);
+      if(conflict){
+        setMsg(`⚠ Ya tiene clase el ${conflict.dia} a las ${conflict.hora} (${SPORTS.find(s=>s.id===conflict.deporte)?.name||conflict.deporte})`);
+        setSaving(false); return;
+      }
+      // Asignar
+      const {data} = await supabase.from("inscripciones").insert([{usuario:alumno.usuario,clase_id:clase.id}]).select().single();
+      if(data) setInscripciones(prev=>[...prev,data]);
+      setMsg(`✓ Inscripto en ${clase.dia} ${clase.hora}`);
+    }
+    setSaving(false);
+  };
+
+  return(
+    <div className="px-4 pt-4 pb-24">
+      <div className="flex items-center gap-3 mb-2">
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"#2E9CAB",fontFamily:"Inter",fontSize:"14px"}}>← Volver</button>
+        <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Clases de {alumno.nombre}</h2>
+      </div>
+      <p className="text-xs mb-4" style={{color:"#8A99A3",fontFamily:"Inter"}}>Tocá una clase para asignarla o quitarla. Si hay conflicto de horario te va a avisar.</p>
+
+      {msg&&(
+        <div className="rounded-xl p-3 mb-3" style={{background:msg.startsWith("⚠")?"#FCE7DC":"#E1F0E3"}}>
+          <p className="text-sm font-semibold" style={{color:msg.startsWith("⚠")?"#B4441C":"#2C6E31",fontFamily:"Inter"}}>{msg}</p>
+        </div>
+      )}
+
+      {mySports.length===0&&(
+        <div className="rounded-xl p-4 text-center" style={{background:"#F7F5EF"}}>
+          <p className="text-sm" style={{color:"#8A99A3",fontFamily:"Inter"}}>Este alumno no tiene deportes asignados. Editá su perfil primero.</p>
+        </div>
+      )}
+
+      {mySports.map(sportId=>{
+        const sport = SPORTS.find(s=>s.id===sportId);
+        const clases = schedule.filter(s=>s.deporte===sportId);
+        if(!sport||clases.length===0) return null;
+        return(
+          <div key={sportId} className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">{sport.emoji}</span>
+              <span className="font-semibold text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{sport.name}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {clases.map(c=>{
+                const assigned = isAssigned(c.id);
+                const conflict = !assigned && getConflict(c);
+                return(
+                  <button key={c.id} onClick={()=>toggle(c)} disabled={saving}
+                    className="w-full rounded-xl p-3 flex items-center justify-between text-left"
+                    style={{background:assigned?"#E1F0E3":conflict?"#FDF3D6":"#fff",border:`1px solid ${assigned?"#2C6E31":conflict?"#F2C230":"#E2E8ED"}`,cursor:"pointer"}}>
+                    <div>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{DAY_LABELS[c.dia]||c.dia}</span>
+                        <span className="text-sm" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{c.hora}</span>
+                      </div>
+                      <p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{c.profesor} · {c.lugar}</p>
+                      {conflict&&<p className="text-xs mt-0.5 font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>⚠ Conflicto con {conflict.dia} {conflict.hora}</p>}
+                    </div>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{background:assigned?"#2C6E31":"#F1F3F4"}}>
+                      {assigned?<Check size={14} color="#fff"/>:<Plus size={14} color="#8A99A3"/>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── ALUMNOS ── */
-function AlumnosView({schedule,sport,users,inscripciones,setUsers}){
+function AlumnosView({schedule,sport,users,inscripciones,setInscripciones,setUsers}){
   const [view,setView]=useState("deporte");
   const [selDep,setSelDep]=useState("todos");
   const [selSession,setSelSession]=useState(null);
   const [editingAlumno,setEditingAlumno]=useState(null);
+  const [gestionandoAlumno,setGestionandoAlumno]=useState(null);
   const sel=selSession||(schedule.filter(s=>s.deporte===(selDep==="todos"?s.deporte:selDep))[0]?.id||null);
   const sportAlumnos=selDep==="todos"?users.filter(u=>u.rol==="usuario"):users.filter(u=>u.rol==="usuario"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(selDep));
   const alumnosEnClase=inscripciones.filter(i=>String(i.clase_id)===String(sel)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?{...u,displayName:`${u.nombre||""}${u.apellido?" "+u.apellido:""}`.trim()}:{displayName:i.usuario};});
   const depOpts=[{id:"todos",name:"Todos",emoji:"👥",color:"#0B3D4C"},...SPORTS];
 
   if(editingAlumno)return<EditarAlumno alumno={editingAlumno} onSave={(updated)=>{setUsers(prev=>prev.map(u=>u.id===updated.id?{...u,...updated}:u));setEditingAlumno(null);}} onBack={()=>setEditingAlumno(null)}/>;
+  if(gestionandoAlumno)return<GestionarClases alumno={gestionandoAlumno} schedule={schedule} inscripciones={inscripciones} setInscripciones={setInscripciones} onBack={()=>setGestionandoAlumno(null)}/>;
 
   return(
     <div className="px-4 pt-4 pb-24">
@@ -1062,7 +1176,10 @@ function AlumnosView({schedule,sport,users,inscripciones,setUsers}){
                     </div>
                     <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono"}}>{u.usuario}</p>
                   </div>
-                  <button onClick={()=>setEditingAlumno(u)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={()=>setGestionandoAlumno(u)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#E4F2F3",border:"none",cursor:"pointer"}} title="Gestionar clases"><CalendarIcon size={13} color="#0B3D4C"/></button>
+                    <button onClick={()=>setEditingAlumno(u)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}} title="Editar alumno"><Pencil size={13} color="#33414A"/></button>
+                  </div>
                 </div>
               );
             })
@@ -1301,7 +1418,7 @@ export default function App(){
           {tab==="asistencia"  &&<AttendanceView schedule={schedule} sport={activeSport} inscripciones={inscripciones} users={users}/>}
           {tab==="calendario"  &&<CalendarDashboard schedule={schedule}/>}
           {tab==="medica"      &&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users}/>}
-          {tab==="alumnos"     &&<AlumnosView schedule={schedule} sport={activeSport} users={users} inscripciones={inscripciones} setUsers={setUsers}/>}
+          {tab==="alumnos"     &&<AlumnosView schedule={schedule} sport={activeSport} users={users} inscripciones={inscripciones} setInscripciones={setInscripciones} setUsers={setUsers}/>}
           {tab==="profesor"    &&<ProfesorView schedule={schedule} inscripciones={inscripciones} users={users} userName={profile.usuario}/>}
           {tab==="log"         &&<LogPanel log={log}/>}
           {tab==="perfil"      &&<PerfilView profile={profile} users={users} setUsers={setUsers} role={role}/>}
