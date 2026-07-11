@@ -52,6 +52,9 @@ function Login({onLogin,resetError,onClearError}){
   const [password,setPassword]=useState("");
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(false);
+  const [showForgot,setShowForgot]=useState(false);
+  const [forgotEmail,setForgotEmail]=useState("");
+  const [forgotMsg,setForgotMsg]=useState("");
   const handleLogin=async()=>{
     setLoading(true);setError("");
     const {data,error:ae}=await supabase.auth.signInWithPassword({email,password});
@@ -81,6 +84,19 @@ function Login({onLogin,resetError,onClearError}){
           {error&&<p className="text-xs mb-3" style={{color:"#F2A08C",fontFamily:"Inter"}}>{error}</p>}
           {resetError&&<div className="rounded-lg p-3 mb-3" style={{background:"#FCE7DC"}}><p className="text-xs font-semibold" style={{color:"#B4441C",fontFamily:"Inter"}}>⚠ {resetError}</p><button onClick={onClearError} className="text-xs mt-1 underline" style={{color:"#B4441C",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Cerrar</button></div>}
           <button onClick={handleLogin} disabled={loading} className="w-full rounded-lg py-2.5 text-sm font-semibold text-white" style={{background:"#E8622C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{loading?"Ingresando...":"Ingresar"}</button>
+          {!showForgot
+            ?<button onClick={()=>setShowForgot(true)} className="w-full mt-2 text-xs" style={{background:"none",border:"none",cursor:"pointer",color:"#9FC4CE",fontFamily:"Inter"}}>¿Olvidaste tu contraseña?</button>
+            :<div className="mt-3 p-3 rounded-xl" style={{background:"rgba(0,0,0,0.2)"}}>
+              <p className="text-xs font-semibold mb-2" style={{color:"#9FC4CE",fontFamily:"Inter"}}>Ingresá tu email y te mandamos un link</p>
+              <input value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)} placeholder="tu@email.com"
+                className="w-full rounded-lg px-3 py-2 text-sm mb-2" style={{background:"#0B3D4C",color:"#F7F5EF",border:"1px solid rgba(46,156,171,0.4)",fontFamily:"Inter",outline:"none"}}/>
+              {forgotMsg&&<p className="text-xs mb-2" style={{color:forgotMsg.startsWith("✓")?"#7ECBA1":"#F2A08C",fontFamily:"Inter"}}>{forgotMsg}</p>}
+              <div className="flex gap-2">
+                <button onClick={async()=>{if(!forgotEmail){setForgotMsg("Ingresá tu email.");return;}const{error}=await supabase.auth.resetPasswordForEmail(forgotEmail,{redirectTo:window.location.origin});if(error)setForgotMsg("Error: "+error.message);else setForgotMsg("✓ Email enviado. Revisá tu casilla.");}} className="flex-1 text-xs font-semibold rounded-lg py-1.5 text-white" style={{background:"#2E9CAB",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Enviar link</button>
+                <button onClick={()=>{setShowForgot(false);setForgotMsg("");}} className="flex-1 text-xs font-semibold rounded-lg py-1.5" style={{background:"rgba(255,255,255,0.1)",color:"#9FC4CE",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Cancelar</button>
+              </div>
+            </div>
+          }
         </div>
         <p className="text-xs mt-6 text-center" style={{color:"#5D8A96",fontFamily:"Inter"}}>Diplomatura IA FCE-UBA 2026</p>
       </div>
@@ -130,7 +146,7 @@ function ResetPassword({onDone}){
   );
 }
 
-function AnuncioPopup({anuncio,onClose}){
+function AnuncioPopup({anuncio,onClose,onMarcarLeido}){
   if(!anuncio)return null;
   return(
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{background:"rgba(11,61,76,0.7)"}}>
@@ -141,7 +157,11 @@ function AnuncioPopup({anuncio,onClose}){
           <span className="text-xs ml-auto" style={{color:"#8A99A3",fontFamily:"Inter"}}>{anuncio.autor}</span>
         </div>
         <p className="text-sm mb-4" style={{color:"#33414A",fontFamily:"Inter",lineHeight:1.6}}>{anuncio.contenido}</p>
-        <button onClick={onClose} className="w-full text-sm font-semibold rounded-lg py-2.5 text-white" style={{background:"#2E9CAB",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Entendido</button>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 text-sm font-semibold rounded-lg py-2.5 text-white" style={{background:"#2E9CAB",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Aceptar</button>
+          <button onClick={onMarcarLeido} className="flex-1 text-sm font-semibold rounded-lg py-2.5" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>Marcar como leído</button>
+        </div>
+        <p className="text-xs mt-2 text-center" style={{color:"#8A99A3",fontFamily:"Inter"}}>Aceptar → vuelve a aparecer · Leído → no vuelve</p>
       </div>
     </div>
   );
@@ -190,10 +210,14 @@ function CrearUsuario({onBack}){
 
 function Header({profile,title,onLogout,pendingCount,onBell,sport,activeProfile}){
   const now=useClock();
-  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Secretaría",admin:"Admin"};
+  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Staff",admin:"Admin"};
   const activeSport=SPORTS.find(s=>s.id===sport);
   const usesSportBg=["usuario","profesor"].includes(profile.rol)&&activeSport;
-  const headerBg=usesSportBg?activeSport.bg:"linear-gradient(135deg,#0B3D4C 0%,#123B4A 100%)";
+  const roleBg={
+    admin:"linear-gradient(135deg,#0B3D4C 0%,#123B4A 100%)",
+    staff:"linear-gradient(135deg,#2D1B69 0%,#4A2F8A 100%)",
+  };
+  const headerBg=usesSportBg?activeSport.bg:(roleBg[profile.rol]||"linear-gradient(135deg,#0B3D4C 0%,#123B4A 100%)");
   const ap=activeProfile||profile;
   const displayName=`${ap.nombre||""} ${ap.apellido||""}`.trim();
   return(
@@ -803,7 +827,7 @@ function PerfilView({profile,users,setUsers,role}){
   };
   const edad=calcEdad(fullUser.fecha_nacimiento);
   const sexoLabel={M:"Masculino",F:"Femenino",X:"No binario"};
-  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Secretaría",admin:"Admin"};
+  const roleLabel={usuario:"Alumno",profesor:"Profesor",staff:"Staff",admin:"Admin"};
   const mySports=fullUser.deportes?fullUser.deportes.split(";").map(s=>s.trim()):[];
   return(
     <div className="px-4 pt-4 pb-24">
@@ -1180,7 +1204,11 @@ export default function App(){
       setComprobantes(co.data||[]);setUsers(us.data||[]);setInscripciones(in_.data||[]);
       setMensajes(ms.data||[]);
       setDependientes((dep.data||[]).filter(d=>d.tutor_id===profile.id));
-      if(an.data&&an.data.length>0)setAnuncioActivo(an.data[0]);
+      if(an.data&&an.data.length>0){
+        const leidos=JSON.parse(sessionStorage.getItem("anuncios_leidos")||"[]");
+        const noLeido=an.data.find(a=>!leidos.includes(a.id));
+        if(noLeido)setAnuncioActivo(noLeido);
+      }
       setLoading(false);
     });
   },[profile]);
@@ -1199,6 +1227,7 @@ export default function App(){
   const hasNatacion=mySports.includes("natacion");
   const activeSport=mySports.includes(sport)?sport:(mySports[0]||"natacion");
   const mensajesNuevos=mensajes.filter(m=>m.para===profile.usuario&&!m.leido).length;
+  const anunciosLeidos=JSON.parse(typeof sessionStorage!=="undefined"?sessionStorage.getItem("anuncios_leidos")||"[]":"[]");
   const notifications=[
     ...requests.filter(r=>r.estado==="pendiente").map(r=>({...r,type:"solicitud"})),
     ...comprobantes.filter(c=>c.estado==="pendiente").map(c=>({...c,type:"comprobante"})),
@@ -1218,7 +1247,7 @@ export default function App(){
     :[{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
 
   const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia"};
-  const noSportTabs=["calendario","perfil","alumnos","dependientes"];
+  const noSportTabs=["calendario","perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
   const hasTutor=role==="usuario"&&dependientes.length>0;
 
   if(showCrear)return(
@@ -1235,7 +1264,15 @@ export default function App(){
   return(
     <div className="min-h-screen max-w-2xl mx-auto" style={{background:"#F7F5EF"}}>
       <style>{FONT_IMPORT}</style>
-      {anuncioActivo&&<AnuncioPopup anuncio={anuncioActivo} onClose={()=>setAnuncioActivo(null)}/>}
+      {anuncioActivo&&<AnuncioPopup anuncio={anuncioActivo}
+        onClose={()=>setAnuncioActivo(null)}
+        onMarcarLeido={async()=>{
+          // Guardar en sessionStorage el id del anuncio leído
+          const leidos=JSON.parse(sessionStorage.getItem("anuncios_leidos")||"[]");
+          leidos.push(anuncioActivo.id);
+          sessionStorage.setItem("anuncios_leidos",JSON.stringify(leidos));
+          setAnuncioActivo(null);
+        }}/>}
       <Header profile={profile} title={titles[tab]||tab} onLogout={handleLogout} pendingCount={notifications.length} onBell={()=>setShowNotif(true)} sport={activeSport} activeProfile={activeProfile}/>
       {role==="admin"&&(
         <div className="px-4 pt-3">
