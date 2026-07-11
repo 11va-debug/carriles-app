@@ -355,7 +355,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
   const today=new Date();
   const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
   const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
-  const [vistaCalendario,setVistaCalendario]=useState(false);
+
   const [showNueva,setShowNueva]=useState(false);
   const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
   const [saving,setSaving]=useState(false);
@@ -457,47 +457,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
     </div>
   );
 
-  // Vista semana (calendario simplificado)
-  if(vistaCalendario){
-    const sport_=SPORTS.find(s=>s.id===sport);
-    return(
-      <div className="px-4 pt-4 pb-24">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Semana — {sportData?.name}</h2>
-          <button onClick={()=>setVistaCalendario(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
-        </div>
-        <div className="rounded-2xl overflow-hidden text-xs" style={{border:"1px solid #E2E8ED"}}>
-          <div className="grid" style={{gridTemplateColumns:"40px repeat(6,1fr)",background:"#0B3D4C"}}>
-            <div className="p-1 text-center text-xs" style={{color:"#9FC4CE"}}></div>
-            {DAYS_LIST.map(d=><div key={d} className="p-1 text-center font-bold text-xs" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{DAY_LABELS[d]}</div>)}
-          </div>
-          {HOURS_LIST.map((hour,i)=>(
-            <div key={hour} className="grid" style={{gridTemplateColumns:"40px repeat(6,1fr)",background:i%2===0?"#fff":"#F7F5EF",borderTop:"1px solid #E2E8ED"}}>
-              <div className="p-1 text-center" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono",borderRight:"1px solid #E2E8ED",fontSize:"9px"}}>{hour}</div>
-              {DAYS_LIST.map(d=>{
-                const clases=items.filter(it=>it.dia===d&&it.hora===hour);
-                return(
-                  <div key={d} className="p-0.5 min-h-[30px] flex flex-col gap-0.5" style={{borderRight:"1px solid #E2E8ED"}}>
-                    {clases.map(cls=>(
-                      <button key={cls.id} onClick={canManage?()=>setEditModal({...cls,selProf:cls.usuario_profesor||""}):undefined}
-                        className="w-full rounded px-0.5 py-0.5 text-left"
-                        style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport_?.color+"33",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"8px",fontWeight:600,border:"none",cursor:canManage?"pointer":"default"}}>
-                        {cls.categoria?cls.categoria.slice(0,5):cls.profesor?.split(" ")[0]}<br/>
-                        <span style={{fontFamily:"IBM Plex Mono",fontSize:"7px"}}>{cls.lugar?.replace("Carril ","C")||""} {cls.inscriptos}/{cls.cupo}</span>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-        {editModal&&<ModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase"/>}
-      </div>
-    );
-  }
-
-  // Vista día (default)
+  // Vista día
   return(
     <div className="px-4 pt-4 pb-24">
       {/* Header día */}
@@ -512,7 +472,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
         </div>
         <div className="flex gap-2">
           {canManage&&<button onClick={()=>{setDraft({dia:dayKey,hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});setShowNueva(true);}} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-1.5 rounded-full" style={{background:"#E8622C",border:"none",cursor:"pointer"}}><Plus size={13}/>Nueva</button>}
-          <button onClick={()=>setVistaCalendario(true)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Semana</button>
+
         </div>
       </div>
 
@@ -543,7 +503,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
 }
 
 function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,userName,schedule,setSchedule,inscripciones,setInscripciones,users,activeUserId}){
-  const [subTab,setSubTab]=useState("cambios");
+  const [subTab,setSubTab]=useState(role==="profesor"?"mensajeria":"cambios");
   const canManage=role==="staff"||role==="admin";
   const efectiveUser=activeUserId||userName;
   const [showForm,setShowForm]=useState(false);
@@ -1416,10 +1376,10 @@ export default function App(){
     ?[{id:"horarios",label:"Mis clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},...(hasNatacion?[{id:"medica",label:"Médica",icon:Stethoscope}]:[]),{id:"perfil",label:"Perfil",icon:User}]
     :role==="staff"
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
-    :[{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
+    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
 
-  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia"};
-  const noSportTabs=["calendario","perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
+  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia"};
+  const noSportTabs=["perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
   const hasTutor=role==="usuario"&&dependientes.length>0;
 
   if(showCrear)return(
@@ -1465,7 +1425,7 @@ export default function App(){
           {tab==="horarios"&&<ClasesView schedule={schedule} setSchedule={setSchedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
           {tab==="solicitudes"&&<SolicitudesView requests={requests} setRequests={setRequests} mensajes={mensajes} setMensajes={setMensajes} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users} activeUserId={activeUserId}/>}
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} activeUserId={activeUserId} userName={profile.usuario}/>}
-          {tab==="calendario"&&<CalendarDashboard schedule={schedule} setSchedule={setSchedule} users={users}/>}
+          
           {tab==="medica"&&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users} activeUserId={activeUserId}/>}
           {tab==="alumnos"&&<AlumnosView schedule={schedule} users={users} inscripciones={inscripciones} setInscripciones={setInscripciones} setSchedule={setSchedule} setUsers={setUsers} dependientes={dependientes}/>}
           {tab==="perfil"&&<PerfilView profile={profile} users={users} setUsers={setUsers} role={role}/>}
