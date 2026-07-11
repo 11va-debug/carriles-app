@@ -337,35 +337,207 @@ function BottomNav({tabs,active,onChange,mensajesNuevos}){
   );
 }
 
-function ClasesView({schedule,sport,role,users,userName,inscripciones,activeUserId}){
+function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripciones,activeUserId}){
   const sportData=SPORTS.find(s=>s.id===sport);
+  const canManage=role==="admin"||role==="staff";
   const myClaseIds=inscripciones.filter(i=>i.usuario===(activeUserId||userName)).map(i=>String(i.clase_id));
   const items=role==="profesor"
     ?schedule.filter(s=>s.deporte===sport&&s.usuario_profesor===userName)
     :role==="usuario"
     ?schedule.filter(s=>s.deporte===sport&&myClaseIds.includes(String(s.id)))
     :schedule.filter(s=>s.deporte===sport);
+
+  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
+  const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
+  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
+
+  // Vista día
+  const today=new Date();
+  const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
+  const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
+  const [vistaCalendario,setVistaCalendario]=useState(false);
+  const [showNueva,setShowNueva]=useState(false);
+  const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
+  const [saving,setSaving]=useState(false);
+  const [editModal,setEditModal]=useState(null);
+
+  const dayKey=DAYS_LIST[dayIdx];
+  const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
+
+  const saveNueva=async()=>{
+    if(!draft.selProf||!draft.lugar)return;
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===draft.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
+    const {data}=await supabase.from("clases").insert([{deporte:sport,dia:draft.dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}]).select().single();
+    if(data)setSchedule(p=>[...p,data]);
+    setSaving(false);setShowNueva(false);
+  };
+
+  const saveEdit=async()=>{
+    if(!editModal)return;
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===editModal.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
+    await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
+    setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
+    setSaving(false);setEditModal(null);
+  };
+
+  const deleteClase=async(id)=>{
+    await supabase.from("clases").delete().eq("id",id);
+    setSchedule(p=>p.filter(s=>s.id!==id));
+    setEditModal(null);
+  };
+
   if(role==="usuario"&&items.length===0){
     return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría.</p></div>);
   }
+
+  // Modal form compartido (nueva o editar)
+  const ModalForm=({data,setData,onSave,onDelete,onClose,title})=>(
+    <div className="fixed inset-0 z-50 flex items-end" style={{background:"rgba(11,61,76,0.6)"}} onClick={onClose}>
+      <div className="w-full max-w-2xl mx-auto rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto" style={{background:"#F7F5EF"}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-lg" style={{color:"#33414A",fontFamily:"Fraunces"}}>{title}</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#8A99A3"}}><X size={20}/></button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Día</label>
+              <select value={data.dia} onChange={e=>setData({...data,dia:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+                {DAYS_LIST.map(d=><option key={d} value={d}>{DAY_LABELS[d]||d}</option>)}
+              </select>
+            </div>
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Cupo</label>
+              <input type="number" value={data.cupo} onChange={e=>setData({...data,cupo:+e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora inicio</label>
+              <select value={data.hora} onChange={e=>setData({...data,hora:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+                {HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora fin</label>
+              <select value={data.hora_fin||""} onChange={e=>setData({...data,hora_fin:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+                <option value="">Sin fin</option>
+                {HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          </div>
+          <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Profesor/a</label>
+            <select value={data.selProf||""} onChange={e=>setData({...data,selProf:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+              <option value="">— Seleccioná —</option>
+              {profesores.map(p=><option key={p.id} value={p.usuario}>{p.nombre} {p.apellido||""}</option>)}
+            </select>
+          </div>
+          {sportData?.lugares&&sportData.lugares.length>0&&(
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{sport==="natacion"?"Carril":"Lugar"}</label>
+              <select value={data.lugar||""} onChange={e=>setData({...data,lugar:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+                {sportData.lugares.map(l=><option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+          )}
+          {sportData?.categorias&&sportData.categorias.length>0&&(
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Categoría</label>
+              <select value={data.categoria||""} onChange={e=>setData({...data,categoria:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
+                <option value="">Sin categoría</option>
+                {sportData.categorias.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button onClick={onSave} disabled={saving} className="flex-1 text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
+          {onDelete&&<button onClick={onDelete} className="text-sm font-semibold rounded-lg py-2.5 px-4" style={{background:"#FCE7DC",color:"#B4441C",border:"none",cursor:"pointer"}}>🗑</button>}
+          <button onClick={onClose} className="text-sm font-semibold rounded-lg py-2.5 px-4" style={{background:"#F1F3F4",color:"#33414A",border:"none",cursor:"pointer"}}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Vista semana (calendario simplificado)
+  if(vistaCalendario){
+    const sport_=SPORTS.find(s=>s.id===sport);
+    return(
+      <div className="px-4 pt-4 pb-24">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Semana — {sportData?.name}</h2>
+          <button onClick={()=>setVistaCalendario(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
+        </div>
+        <div className="rounded-2xl overflow-hidden text-xs" style={{border:"1px solid #E2E8ED"}}>
+          <div className="grid" style={{gridTemplateColumns:"40px repeat(6,1fr)",background:"#0B3D4C"}}>
+            <div className="p-1 text-center text-xs" style={{color:"#9FC4CE"}}></div>
+            {DAYS_LIST.map(d=><div key={d} className="p-1 text-center font-bold text-xs" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{DAY_LABELS[d]}</div>)}
+          </div>
+          {HOURS_LIST.map((hour,i)=>(
+            <div key={hour} className="grid" style={{gridTemplateColumns:"40px repeat(6,1fr)",background:i%2===0?"#fff":"#F7F5EF",borderTop:"1px solid #E2E8ED"}}>
+              <div className="p-1 text-center" style={{color:"#8A99A3",fontFamily:"IBM Plex Mono",borderRight:"1px solid #E2E8ED",fontSize:"9px"}}>{hour}</div>
+              {DAYS_LIST.map(d=>{
+                const clases=items.filter(it=>it.dia===d&&it.hora===hour);
+                return(
+                  <div key={d} className="p-0.5 min-h-[30px] flex flex-col gap-0.5" style={{borderRight:"1px solid #E2E8ED"}}>
+                    {clases.map(cls=>(
+                      <button key={cls.id} onClick={canManage?()=>setEditModal({...cls,selProf:cls.usuario_profesor||""}):undefined}
+                        className="w-full rounded px-0.5 py-0.5 text-left"
+                        style={{background:+cls.inscriptos>=+cls.cupo?"#FCE7DC":sport_?.color+"33",color:+cls.inscriptos>=+cls.cupo?"#B4441C":"#33414A",fontFamily:"Inter",fontSize:"8px",fontWeight:600,border:"none",cursor:canManage?"pointer":"default"}}>
+                        {cls.categoria?cls.categoria.slice(0,5):cls.profesor?.split(" ")[0]}<br/>
+                        <span style={{fontFamily:"IBM Plex Mono",fontSize:"7px"}}>{cls.lugar?.replace("Carril ","C")||""} {cls.inscriptos}/{cls.cupo}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        {editModal&&<ModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase"/>}
+      </div>
+    );
+  }
+
+  // Vista día (default)
   return(
     <div className="px-4 pt-4 pb-24">
-      <h2 className="font-semibold mb-3" style={{color:"#33414A",fontFamily:"Inter"}}>Clases — {sportData?.name}</h2>
-      {items.length===0&&<p className="text-sm text-center py-8" style={{color:"#8A99A3",fontFamily:"Inter"}}>No hay clases para este deporte.</p>}
-      <div className="flex flex-col gap-2.5">
-        {items.map(it=>(
-          <div key={it.id} className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-bold px-2 py-1 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{DAY_LABELS[it.dia]||it.dia}</span>
-              <span className="text-sm" style={{color:"#33414A",fontFamily:"IBM Plex Mono"}}>{it.hora}</span>
-              {it.categoria&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:sportData?.color+"22",color:sportData?.color,fontFamily:"Inter"}}>{it.categoria}</span>}
-            </div>
-            <p className="font-semibold text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{it.profesor}</p>
-            <p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar}{role!=="usuario"?` · ${it.inscriptos}/${it.cupo} cupos`:""}</p>
-            {role==="profesor"&&<div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg" style={{background:"#FDF3D6",display:"inline-flex"}}><Clock size={12} color="#8A6A0A"/><span className="text-xs font-semibold" style={{color:"#8A6A0A",fontFamily:"Inter"}}>Próxima: {formatShortDate(nextDateForDay(it.dia))}</span></div>}
+      {/* Header día */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <button onClick={()=>setDayIdx(i=>(i-1+6)%6)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer",fontSize:"16px"}}>‹</button>
+          <div>
+            <p className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces",fontSize:"18px"}}>{DAY_LABELS[dayKey]||dayKey}</p>
+            <p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>{formatShortDate(nextDateForDay(dayKey))}</p>
           </div>
-        ))}
+          <button onClick={()=>setDayIdx(i=>(i+1)%6)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer",fontSize:"16px"}}>›</button>
+        </div>
+        <div className="flex gap-2">
+          {canManage&&<button onClick={()=>{setDraft({dia:dayKey,hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});setShowNueva(true);}} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-1.5 rounded-full" style={{background:"#E8622C",border:"none",cursor:"pointer"}}><Plus size={13}/>Nueva</button>}
+          <button onClick={()=>setVistaCalendario(true)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Semana</button>
+        </div>
       </div>
+
+      {dayItems.length===0
+        ?<div className="text-center py-12"><p className="text-3xl mb-2">📅</p><p className="text-sm" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin clases este día{canManage?" · Tocá + Nueva para agregar":""}</p></div>
+        :<div className="flex flex-col gap-3">
+          {dayItems.map(it=>(
+            <div key={it.id} className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-sm font-bold" style={{color:"#0B3D4C",fontFamily:"IBM Plex Mono"}}>{it.hora}{it.hora_fin?" – "+it.hora_fin:""}</span>
+                    {it.categoria&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:sportData?.color+"22",color:sportData?.color,fontFamily:"Inter"}}>{it.categoria}</span>}
+                  </div>
+                  <p className="font-semibold text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{it.profesor}</p>
+                  <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar} · {it.inscriptos}/{it.cupo} cupos</p>
+                </div>
+                {canManage&&<button onClick={()=>setEditModal({...it,selProf:it.usuario_profesor||""})} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      }
+      {showNueva&&<ModalForm data={draft} setData={setDraft} onSave={saveNueva} onClose={()=>setShowNueva(false)} title="Nueva clase"/>}
+      {editModal&&<ModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase"/>}
     </div>
   );
 }
@@ -427,7 +599,7 @@ function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,u
   return(
     <div className="pb-24">
       <div className="flex gap-2 px-4 pt-4 mb-1">
-        {["cambios","mensajeria"].map(v=>(
+        {(role==="profesor"?["mensajeria"]:["cambios","mensajeria"]).map(v=>(
           <button key={v} onClick={()=>setSubTab(v)} className="flex-1 text-sm font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5"
             style={{background:subTab===v?"#0B3D4C":"#fff",color:subTab===v?"#fff":"#33414A",border:`1px solid ${subTab===v?"#0B3D4C":"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
             {v==="cambios"?<><ArrowLeftRight size={14}/>Cambios</>:<><MessageSquare size={14}/>Mensajería</>}
@@ -1290,7 +1462,7 @@ export default function App(){
       {loading
         ?<div className="flex items-center justify-center py-16 gap-2" style={{color:"#8A99A3"}}><Loader size={20} className="animate-spin"/><span style={{fontFamily:"Inter"}}>Cargando datos...</span></div>
         :<>
-          {tab==="horarios"&&<ClasesView schedule={schedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
+          {tab==="horarios"&&<ClasesView schedule={schedule} setSchedule={setSchedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
           {tab==="solicitudes"&&<SolicitudesView requests={requests} setRequests={setRequests} mensajes={mensajes} setMensajes={setMensajes} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users} activeUserId={activeUserId}/>}
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} activeUserId={activeUserId} userName={profile.usuario}/>}
           {tab==="calendario"&&<CalendarDashboard schedule={schedule} setSchedule={setSchedule} users={users}/>}
