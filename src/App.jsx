@@ -36,30 +36,11 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const VERSION="v8.6";
+const VERSION="v8.7";
 
-function getNivelDeporte(niveles,deporte){
-  if(!niveles)return "";
-  const found=(niveles.split(";")).find(n=>n.startsWith(deporte+":"));
-  return found?found.split(":")[1]:"";
-}
-function setNivelDeporte(niveles,deporte,nivel){
-  const parts=(niveles||"").split(";").filter(n=>n&&!n.startsWith(deporte+":"));
-  if(nivel)parts.push(deporte+":"+nivel);
-  return parts.join(";");
-}
-function getCategoriaAlumno(alumno,deporte){
-  // Para natacion: por edad
-  if(deporte==="natacion"){
-    const edad=calcEdad(alumno.fecha_nacimiento);
-    if(edad===null)return null;
-    if(edad<=12)return "Infantil";
-    if(edad<=17)return "Juvenil";
-    return getNivelDeporte(alumno.niveles,"natacion")||null;
-  }
-  // Para voley/handball: por nivel asignado
-  return getNivelDeporte(alumno.niveles,deporte)||null;
-}
+function getNivelDeporte(niveles,deporte){if(!niveles)return "";const found=niveles.split(";").find(n=>n.startsWith(deporte+":"));return found?found.split(":")[1]:"";}
+function setNivelDeporte(niveles,deporte,nivel){const parts=(niveles||"").split(";").filter(n=>n&&!n.startsWith(deporte+":"));if(nivel)parts.push(deporte+":"+nivel);return parts.join(";");}
+function getCategoriaAlumno(alumno,deporte){if(deporte==="natacion"){const edad=calcEdad(alumno.fecha_nacimiento);if(edad===null)return null;if(edad<=12)return "Infantil";if(edad<=17)return "Juvenil";return getNivelDeporte(alumno.niveles,"natacion")||null;}return getNivelDeporte(alumno.niveles,deporte)||null;}
 function calcEdad(f){if(!f)return null;const h=new Date(),n=new Date(f);let e=h.getFullYear()-n.getFullYear();if(h.getMonth()-n.getMonth()<0||(h.getMonth()-n.getMonth()===0&&h.getDate()<n.getDate()))e--;return e;}
 function nextDateForDay(d){const now=new Date(),dow=now.getDay();const t={Lun:1,Mar:2,Mie:3,Jue:4,Vie:5,Sab:6}[d]||1;let diff=t-dow;if(diff<0)diff+=7;const r=new Date(now);r.setDate(now.getDate()+diff);return r;}
 function formatShortDate(d){return `${DIAS_ES[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;}
@@ -363,6 +344,7 @@ function BottomNav({tabs,active,onChange,mensajesNuevos}){
 function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,sportData,sport,saving}){
   const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
   const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
+  const dias=data.dias||(data.dia?[data.dia]:[]);
   return(
     <div className="fixed inset-0 z-50 flex items-end" style={{background:"rgba(11,61,76,0.6)"}} onClick={onClose}>
       <div className="w-full max-w-2xl mx-auto rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto" style={{background:"#F7F5EF"}} onClick={e=>e.stopPropagation()}>
@@ -374,57 +356,23 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Días</label>
             <div className="flex gap-1.5 flex-wrap">
-              {DAYS_LIST.map(d=>{
-                const dias=data.dias||[data.dia].filter(Boolean);
-                const sel=dias.includes(d);
-                return(<button key={d} type="button" onClick={()=>{const cur=data.dias||[data.dia].filter(Boolean);setData({...data,dias:sel?cur.filter(x=>x!==d):[...cur,d]});}}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:sel?"#0B3D4C":"#F1F3F4",color:sel?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
-                  {DAY_LABELS[d]||d}
-                </button>);
-              })}
+              {DAYS_LIST.map(d=>{const sel=dias.includes(d);return(<button key={d} type="button" onClick={()=>{const cur=data.dias||[data.dia].filter(Boolean);setData({...data,dias:sel?cur.filter(x=>x!==d):[...cur,d]});}} className="px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:sel?"#0B3D4C":"#F1F3F4",color:sel?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{DAY_LABELS[d]||d}</button>);})}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div style={{display:"none"}}></div>
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Cupo</label>
-              <input type="number" value={data.cupo} onChange={e=>setData({...data,cupo:+e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/>
-            </div>
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora inicio</label><select value={data.hora||"09:00"} onChange={e=>setData({...data,hora:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>{HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
+            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora fin</label><select value={data.hora_fin||""} onChange={e=>setData({...data,hora_fin:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}><option value="">Sin fin</option>{HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora inicio</label>
-              <select value={data.hora} onChange={e=>setData({...data,hora:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
-                {HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Hora fin</label>
-              <select value={data.hora_fin||""} onChange={e=>setData({...data,hora_fin:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
-                <option value="">Sin fin</option>
-                {HOURS_LIST.map(h=><option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
-          </div>
+          <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Cupo</label><input type="number" value={data.cupo||10} onChange={e=>setData({...data,cupo:+e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/></div>
           <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Profesor/a</label>
             <select value={data.selProf||""} onChange={e=>setData({...data,selProf:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
               <option value="">— Seleccioná —</option>
               {profesores.map(p=><option key={p.id} value={p.usuario}>{p.nombre} {p.apellido||""}</option>)}
             </select>
-            {profesores.length===0&&<p className="text-xs mt-1 font-semibold" style={{color:"#E8622C",fontFamily:"Inter"}}>⚠ No hay profesores con este deporte asignado. Creá un profesor con este deporte primero.</p>}
+            {profesores.length===0&&<p className="text-xs mt-1 font-semibold" style={{color:"#E8622C",fontFamily:"Inter"}}>⚠ No hay profesores con este deporte asignado.</p>}
           </div>
-          {sportData?.lugares&&sportData.lugares.length>0&&(
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{sport==="natacion"?"Carril":"Lugar"}</label>
-              <select value={data.lugar||""} onChange={e=>setData({...data,lugar:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
-                {sportData.lugares.map(l=><option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-          )}
-          {sportData?.categorias&&sportData.categorias.length>0&&(
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Categoría</label>
-              <select value={data.categoria||""} onChange={e=>setData({...data,categoria:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
-                <option value="">Sin categoría</option>
-                {sportData.categorias.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          )}
+          {sportData?.lugares&&sportData.lugares.length>0&&(<div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{sport==="natacion"?"Carril":"Lugar"}</label><select value={data.lugar||""} onChange={e=>setData({...data,lugar:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>{sportData.lugares.map(l=><option key={l} value={l}>{l}</option>)}</select></div>)}
+          {sportData?.categorias&&sportData.categorias.length>0&&(<div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Categoría</label><select value={data.categoria||""} onChange={e=>setData({...data,categoria:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}><option value="">Sin categoría</option>{sportData.categorias.map(c=><option key={c} value={c}>{c}</option>)}</select></div>)}
         </div>
         <div className="flex gap-2 mt-4">
           <button onClick={onSave} disabled={saving} className="flex-1 text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer"}}>{saving?"Guardando...":"Guardar"}</button>
@@ -433,15 +381,75 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
         </div>
       </div>
     </div>
+  );
 }
 
-  // Vista mes
+function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripciones,activeUserId}){
+  const sportData=SPORTS.find(s=>s.id===sport);
+  const canManage=role==="admin"||role==="staff";
+  const myClaseIds=inscripciones.filter(i=>i.usuario===(activeUserId||userName)).map(i=>String(i.clase_id));
+  const items=role==="profesor"
+    ?schedule.filter(s=>s.deporte===sport&&s.usuario_profesor===userName)
+    :role==="usuario"
+    ?schedule.filter(s=>s.deporte===sport&&myClaseIds.includes(String(s.id)))
+    :schedule.filter(s=>s.deporte===sport);
+  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
+  const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
+  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
+  const today=new Date();
+  const todayIdx=today.getDay()===0?6:today.getDay()-1;
+  const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
+  const [vistaMes,setVistaMes]=useState(false);
+  const [mes,setMes]=useState(today.getMonth());
+  const [anio,setAnio]=useState(today.getFullYear());
+  const [showNueva,setShowNueva]=useState(false);
+  const [draft,setDraft]=useState({dias:["Lun"],hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
+  const [saving,setSaving]=useState(false);
+  const [editModal,setEditModal]=useState(null);
+  const [expandedClaseId,setExpandedClaseId]=useState(null);
+  const dayKey=DAYS_LIST[dayIdx];
+  const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
+
+  const saveNueva=async()=>{
+    if(!draft.selProf){alert("Seleccioná un profesor.");return;}
+    if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
+    if(!draft.dias||draft.dias.length===0){alert("Seleccioná al menos un día.");return;}
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===draft.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
+    const rows=draft.dias.map(dia=>({deporte:sport,dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}));
+    const {data,error}=await supabase.from("clases").insert(rows).select();
+    if(error){alert("Error: "+error.message);setSaving(false);return;}
+    if(data)setSchedule(p=>[...p,...data]);
+    setSaving(false);setShowNueva(false);
+  };
+
+  const saveEdit=async()=>{
+    if(!editModal)return;
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===editModal.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
+    const {error}=await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin||null,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria||null}).eq("id",editModal.id);
+    if(error){alert("Error: "+error.message);setSaving(false);return;}
+    setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
+    setSaving(false);setEditModal(null);
+  };
+
+  const deleteClase=async(id)=>{
+    await supabase.from("clases").delete().eq("id",id);
+    setSchedule(p=>p.filter(s=>s.id!==id));setEditModal(null);
+  };
+
+  if(role==="usuario"&&items.length===0){
+    return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría.</p></div>);
+  }
+
   if(vistaMes){
     const firstDay=new Date(anio,mes,1);
     const lastDay=new Date(anio,mes+1,0);
     const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
     const totalDays=lastDay.getDate();
-    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+    const getDK=(d)=>["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][new Date(anio,mes,d).getDay()];
     return(
       <div className="px-4 pt-4 pb-24">
         <div className="flex items-center justify-between mb-3">
@@ -454,25 +462,19 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
         </div>
         <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
           <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
-            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
+            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
           </div>
           {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
             <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
               {Array.from({length:7}).map((_,di)=>{
-                const dayNum=wi*7+di-startDow+1;
-                const valid=dayNum>=1&&dayNum<=totalDays;
-                const dk=valid?getDayKey2(dayNum):"";
-                const clases=valid?items.filter(s=>s.dia===dk):[];
-                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
+                const dn=wi*7+di-startDow+1;
+                const valid=dn>=1&&dn<=totalDays;
+                const clases=valid?items.filter(s=>s.dia===getDK(dn)):[];
+                const isToday=valid&&dn===today.getDate()&&mes===today.getMonth()&&anio===today.getFullYear();
                 return(
-                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
-                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
-                    {clases.slice(0,2).map(c=>(
-                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
-                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
-                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
-                      </div>
-                    ))}
+                  <div key={di} className="p-0.5 min-h-[52px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
+                    {valid&&<p className="text-xs font-bold" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dn}</p>}
+                    {clases.slice(0,2).map(c=><div key={c.id} className="rounded px-0.5 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"7px",fontWeight:600,color:"#33414A"}}>{c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/><span style={{color:"#8A99A3"}}>{c.lugar?.replace("Carril ","C")||""}</span></div>)}
                     {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
                   </div>
                 );
@@ -484,10 +486,8 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
     );
   }
 
-  // Vista día
   return(
     <div className="px-4 pt-4 pb-24">
-      {/* Header día */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <button onClick={()=>setDayIdx(i=>(i-1+6)%6)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer",fontSize:"16px"}}>‹</button>
@@ -499,10 +499,9 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
         </div>
         <div className="flex gap-2">
           {canManage&&<button onClick={()=>{setDraft({dias:[dayKey],hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});setShowNueva(true);}} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-1.5 rounded-full" style={{background:"#E8622C",border:"none",cursor:"pointer"}}><Plus size={13}/>Nueva</button>}
-
+          {canManage&&<button onClick={()=>setVistaMes(true)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Mes</button>}
         </div>
       </div>
-
       {dayItems.length===0
         ?<div className="text-center py-12"><p className="text-3xl mb-2">📅</p><p className="text-sm" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin clases este día{canManage?" · Tocá + Nueva para agregar":""}</p></div>
         :<div className="flex flex-col gap-3">
@@ -522,14 +521,14 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
                       <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar} · {it.inscriptos}/{it.cupo} cupos</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={()=>setExpandedClaseId(isExpanded?null:it.id)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:isExpanded?"#0B3D4C":"#E4F2F3",border:"none",cursor:"pointer"}} title="Ver alumnos"><Users size={13} color={isExpanded?"#fff":"#0B3D4C"}/></button>
+                      {(canManage||role==="profesor")&&<button onClick={()=>setExpandedClaseId(isExpanded?null:it.id)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:isExpanded?"#0B3D4C":"#E4F2F3",border:"none",cursor:"pointer"}}><Users size={13} color={isExpanded?"#fff":"#0B3D4C"}/></button>}
                       {canManage&&<button onClick={()=>setEditModal({...it,selProf:it.usuario_profesor||""})} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>}
                     </div>
                   </div>
                 </div>
                 {isExpanded&&(
                   <div className="px-4 pb-3" style={{borderTop:"1px solid #F1F3F4"}}>
-                    <p className="text-xs uppercase font-semibold mt-2 mb-1.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>Alumnos inscriptos ({alumnosClase.length})</p>
+                    <p className="text-xs uppercase font-semibold mt-2 mb-1.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>Alumnos ({alumnosClase.length})</p>
                     {alumnosClase.length===0?<p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos aún.</p>
                       :alumnosClase.map(a=><div key={a} className="flex items-center gap-2 py-1"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{a[0]||"?"}</div><span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{a}</span></div>)
                     }
@@ -540,10 +539,10 @@ function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,s
           })}
         </div>
       }
-      {showNueva&&<ModalForm data={draft} setData={setDraft} onSave={saveNueva} onClose={()=>setShowNueva(false)} title="Nueva clase"/>}
-      {editModal&&<ModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase"/>}
+      {showNueva&&<ClaseModalForm data={draft} setData={setDraft} onSave={saveNueva} onClose={()=>setShowNueva(false)} title="Nueva clase" profesores={profesores} sportData={sportData} sport={sport} saving={saving}/>}
+      {editModal&&<ClaseModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase" profesores={profesores} sportData={sportData} sport={sport} saving={saving}/>}
     </div>
-}
+  );
 }
 
 function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,userName,schedule,setSchedule,inscripciones,setInscripciones,users,activeUserId}){
@@ -719,7 +718,7 @@ function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,u
         </div>
       )}
     </div>
-}
+  );
 }
 
 function PaymentView({sport,role,comprobantes,setComprobantes,mySports,activeUserId,userName}){
@@ -784,7 +783,7 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,activeUse
         </>
       )}
     </div>
-}
+  );
 }
 
 function RevisionMedica({revisiones,setRevisiones,role,userName,users,activeUserId}){
@@ -800,123 +799,6 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users,activeUser
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const rev=revisiones.find(r=>r.usuario===selected)||{usuario:selected,rev1:"",rev2:"",apto:""};
-
-function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripciones,activeUserId}){
-  const sportData=SPORTS.find(s=>s.id===sport);
-  const canManage=role==="admin"||role==="staff";
-  const myClaseIds=inscripciones.filter(i=>i.usuario===(activeUserId||userName)).map(i=>String(i.clase_id));
-  const items=role==="profesor"
-    ?schedule.filter(s=>s.deporte===sport&&s.usuario_profesor===userName)
-    :role==="usuario"
-    ?schedule.filter(s=>s.deporte===sport&&myClaseIds.includes(String(s.id)))
-    :schedule.filter(s=>s.deporte===sport);
-
-  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
-  const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
-  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
-
-  // Vista mes
-  if(vistaMes){
-    const firstDay=new Date(anio,mes,1);
-    const lastDay=new Date(anio,mes+1,0);
-    const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
-    const totalDays=lastDay.getDate();
-    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
-    return(
-      <div className="px-4 pt-4 pb-24">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
-            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces"}}>{MESES_LABEL[mes]} {anio}</span>
-            <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
-          </div>
-          <button onClick={()=>setVistaMes(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
-        </div>
-        <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
-          <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
-            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
-          </div>
-          {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
-            <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
-              {Array.from({length:7}).map((_,di)=>{
-                const dayNum=wi*7+di-startDow+1;
-                const valid=dayNum>=1&&dayNum<=totalDays;
-                const dk=valid?getDayKey2(dayNum):"";
-                const clases=valid?items.filter(s=>s.dia===dk):[];
-                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
-                return(
-                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
-                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
-                    {clases.slice(0,2).map(c=>(
-                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
-                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
-                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
-                      </div>
-                    ))}
-                    {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Vista día
-  const today=new Date();
-  const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
-  const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
-
-  const [showNueva,setShowNueva]=useState(false);
-  const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
-  const [saving,setSaving]=useState(false);
-  const [editModal,setEditModal]=useState(null);
-  const [expandedClaseId,setExpandedClaseId]=useState(null);
-  const now2=new Date();
-  const [mes,setMes]=useState(now2.getMonth());
-  const [anio,setAnio]=useState(now2.getFullYear());
-
-  const dayKey=DAYS_LIST[dayIdx];
-  const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
-
-  const saveNueva=async()=>{
-    if(!draft.selProf){alert("Seleccioná un profesor.");return;}
-    if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
-    if(!draft.dias||draft.dias.length===0){alert("Seleccioná al menos un día.");return;}
-    setSaving(true);
-    const profUser=users.find(u=>u.usuario===draft.selProf);
-    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
-    const rows=draft.dias.map(dia=>({deporte:sport,dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}));
-    const {data,error}=await supabase.from("clases").insert(rows).select();
-    if(error){alert("Error al guardar: "+error.message);setSaving(false);return;}
-    if(data)setSchedule(p=>[...p,...data]);
-    setSaving(false);setShowNueva(false);
-  };
-
-  const saveEdit=async()=>{
-    if(!editModal)return;
-    setSaving(true);
-    const profUser=users.find(u=>u.usuario===editModal.selProf);
-    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
-    const {error}=await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
-    if(error){alert("Error: "+error.message);setSaving(false);return;}
-    setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
-    setSaving(false);setEditModal(null);
-  };
-
-  const deleteClase=async(id)=>{
-    await supabase.from("clases").delete().eq("id",id);
-    setSchedule(p=>p.filter(s=>s.id!==id));
-    setEditModal(null);
-  };
-
-  if(role==="usuario"&&items.length===0){
-    return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría.</p></div>);
-  }
-
-
   const saveEdit=async()=>{
     if(!draft.rev1){setSaveError("La primera revisión es obligatoria.");return;}
     if(esSegundaFase&&!draft.rev2){setSaveError("La segunda revisión es obligatoria a partir del día 18.");return;}
@@ -1022,29 +904,7 @@ function EditarAlumno({alumno,onSave,onBack}){
           <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sexo</label><select value={form.sexo} onChange={e=>setForm({...form,sexo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}><option value="">Sin especificar</option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No binario</option></select></div>
           <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label><select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}><option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="staff">Secretaría</option><option value="admin">Admin</option></select></div>
           <div><label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Deportes</label><div className="grid grid-cols-2 gap-2">{opDep.map(d=>{const s=SPORTS.find(sp=>sp.id===d);return(<button key={d} type="button" onClick={()=>toggleDep(d)} className="p-2 rounded-xl text-sm font-semibold" style={{background:form.deportes.includes(d)?s?.color:"#F1F3F4",color:form.deportes.includes(d)?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{s?.emoji} {s?.name}</button>);})}</div></div>
-          {form.deportes.length>0&&(
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Nivel por deporte</label>
-              <div className="flex flex-col gap-2">
-                {form.deportes.map(d=>{
-                  const s=SPORTS.find(sp=>sp.id===d);
-                  const cats=d==="natacion"?["Adulto Inicial","Adulto Intermedio","Adulto Avanzado"]:s?.categorias||[];
-                  if(cats.length===0)return null;
-                  return(
-                    <div key={d} className="flex items-center gap-2">
-                      <span className="text-xs font-semibold w-20 shrink-0" style={{color:s?.color,fontFamily:"Inter"}}>{s?.emoji} {s?.name}</span>
-                      <select value={getNivelDeporte(form.niveles,d)} onChange={e=>setForm({...form,niveles:setNivelDeporte(form.niveles,d,e.target.value)})}
-                        className="flex-1 border rounded-lg px-2 py-1.5 text-xs" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
-                        <option value="">Sin nivel</option>
-                        {cats.map(c=><option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-xs mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Natación: el nivel adulto se asigna aquí. Infantil y Juvenil se calculan por edad.</p>
-            </div>
-          )}
+          {form.deportes.length>0&&(<div><label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Nivel por deporte</label><div className="flex flex-col gap-2">{form.deportes.map(d=>{const s=SPORTS.find(sp=>sp.id===d);const cats=d==="natacion"?["Adulto Inicial","Adulto Intermedio","Adulto Avanzado"]:s?.categorias||[];if(cats.length===0)return null;return(<div key={d} className="flex items-center gap-2"><span className="text-xs font-semibold w-20 shrink-0" style={{color:s?.color,fontFamily:"Inter"}}>{s?.emoji} {s?.name}</span><select value={getNivelDeporte(form.niveles,d)} onChange={e=>setForm({...form,niveles:setNivelDeporte(form.niveles,d,e.target.value)})} className="flex-1 border rounded-lg px-2 py-1.5 text-xs" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}><option value="">Sin nivel</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select></div>);})}</div><p className="text-xs mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Natación adultos: nivel asignado aquí. Infantil/Juvenil se calculan por edad.</p></div>)}
           <button onClick={save} disabled={saving} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{saving?"Guardando...":"Guardar cambios"}</button>
           <div className="pt-3" style={{borderTop:"1px solid #E2E8ED"}}>
             <button onClick={resetPass} className="w-full text-sm font-semibold rounded-lg py-2.5" style={{background:"#FDF3D6",color:"#8A6A0A",border:"1px solid #F2C230",cursor:"pointer",fontFamily:"Inter"}}>🔑 Enviar email para restablecer contraseña</button>
@@ -1064,8 +924,7 @@ function GestionarClases({alumno,schedule,inscripciones,setInscripciones,setSche
   const [activeSport,setActiveSport]=useState(mySports[0]||null);
   const myClaseIds=inscripciones.filter(i=>i.usuario===alumno.usuario).map(i=>String(i.clase_id));
   const isAssigned=(id)=>myClaseIds.includes(String(id));
-  // Un alumno solo puede tener 1 clase por deporte por día
-  const getConflict=(c)=>schedule.filter(s=>myClaseIds.includes(String(s.id))&&s.deporte===c.deporte).find(s=>s.dia===c.dia&&s.id!==c.id);
+  const getConflict=(c)=>schedule.filter(s=>myClaseIds.includes(String(s.id))).find(s=>s.dia===c.dia&&s.hora===c.hora&&s.id!==c.id);
   const toggle=async(clase)=>{
     setSaving(true);setMsg("");
     if(isAssigned(clase.id)){
@@ -1088,11 +947,7 @@ function GestionarClases({alumno,schedule,inscripciones,setInscripciones,setSche
     setSaving(false);
   };
   const catAlumno=getCategoriaAlumno(alumno,activeSport);
-  const clases=schedule.filter(s=>{
-    if(s.deporte!==activeSport)return false;
-    if(!s.categoria||!catAlumno)return true; // sin categoría = cualquiera puede
-    return s.categoria===catAlumno;
-  });
+  const clases=schedule.filter(s=>{if(s.deporte!==activeSport)return false;if(!s.categoria||!catAlumno)return true;return s.categoria===catAlumno;});
   return(
     <div className="px-4 pt-4 pb-24">
       <div className="flex items-center gap-3 mb-2"><button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"#2E9CAB",fontFamily:"Inter",fontSize:"14px"}}>← Volver</button><h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Clases de {alumno.nombre}</h2></div>
@@ -1479,81 +1334,6 @@ function CalendarDashboard({schedule,setSchedule,users}){
   );
 }
 
-/* ── CALENDARIO MES (solo admin) ── */
-function CalendarioMes({schedule,setSchedule,users}){
-  const [activeSport,setActiveSport]=useState("natacion");
-  const sport=SPORTS.find(s=>s.id===activeSport);
-  const now=new Date();
-  const [mes,setMes]=useState(now.getMonth());
-  const [anio,setAnio]=useState(now.getFullYear());
-  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
-
-  // Generar días del mes
-  const firstDay=new Date(anioC,mesC,1);
-  const lastDay=new Date(anioC,mesC+1,0);
-  const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1; // 0=Lun
-  const totalDays=lastDay.getDate();
-
-  // Para cada día del mes, saber qué día de semana es
-  const getDayKey=(d)=>{const dow=new Date(anioC,mesC,d).getDay();return ["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
-  const getClasesForDay=(d)=>{
-    const dk=getDayKey(d);
-    return schedule.filter(s=>s.deporte===activeSport&&s.dia===dk);
-  };
-
-  return(
-    <div className="px-4 pt-4 pb-24">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Calendario</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={()=>{if(mesC===0){setMesC(11);setAnioC(a=>a-1);}else setMesC(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
-          <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{MESES_LABEL[mesC]} {anioC}</span>
-          <button onClick={()=>{if(mesC===11){setMesC(0);setAnioC(a=>a+1);}else setMesC(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
-        </div>
-      </div>
-      <div className="flex gap-2 overflow-x-auto mb-3" style={{scrollbarWidth:"none"}}>
-        {SPORTS.map(s=>(
-          <button key={s.id} onClick={()=>setActiveSport(s.id)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
-            style={{background:activeSport===s.id?s.color:"#fff",color:activeSport===s.id?"#fff":"#33414A",border:`1px solid ${activeSport===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
-            {s.emoji} {s.name}
-          </button>
-        ))}
-      </div>
-      {/* Cabecera días */}
-      <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
-        <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
-          {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
-        </div>
-        {/* Semanas */}
-        {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
-          <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
-            {Array.from({length:7}).map((_,di)=>{
-              const dayNum=wi*7+di-startDow+1;
-              const valid=dayNum>=1&&dayNum<=totalDays;
-              const clases=valid?getClasesForDay(dayNum):[];
-              const isToday=valid&&dayNum===now.getDate()&&mes===now.getMonth()&&anio===now.getFullYear();
-              return(
-                <div key={di} className="p-1 min-h-[60px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
-                  {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
-                  {clases.slice(0,2).map(c=>(
-                    <div key={c.id} className="rounded px-1 py-0.5 mb-0.5 leading-tight" style={{background:sport?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
-                      {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
-                      <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""}</span>
-                    </div>
-                  ))}
-                  {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3",fontFamily:"Inter"}}>+{clases.length-2} más</p>}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-center mt-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Vista de clases del mes · Para editar andá a Clases</p>
-    </div>
-  );
-}
-
-
 export default function App(){
   const [profile,setProfile]            = useState(null);
   const [tab,setTab]                    = useState("horarios");
@@ -1641,10 +1421,10 @@ export default function App(){
     ?[{id:"horarios",label:"Mis clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},...(hasNatacion?[{id:"medica",label:"Médica",icon:Stethoscope}]:[]),{id:"perfil",label:"Perfil",icon:User}]
     :role==="staff"
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
-    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
+    :[{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
 
-  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia",calendario:"Calendario"};
-  const noSportTabs=["perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
+  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",calendario:"Disponibilidad",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia"};
+  const noSportTabs=["calendario","perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
   const hasTutor=role==="usuario"&&dependientes.length>0;
 
   if(showCrear)return(
@@ -1689,9 +1469,8 @@ export default function App(){
         :<>
           {tab==="horarios"&&<ClasesView schedule={schedule} setSchedule={setSchedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
           {tab==="solicitudes"&&<SolicitudesView requests={requests} setRequests={setRequests} mensajes={mensajes} setMensajes={setMensajes} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users} activeUserId={activeUserId}/>}
-          
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} activeUserId={activeUserId} userName={profile.usuario}/>}
-          
+          {tab==="calendario"&&<CalendarDashboard schedule={schedule} setSchedule={setSchedule} users={users}/>}
           {tab==="medica"&&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users} activeUserId={activeUserId}/>}
           {tab==="alumnos"&&<AlumnosView schedule={schedule} users={users} inscripciones={inscripciones} setInscripciones={setInscripciones} setSchedule={setSchedule} setUsers={setUsers} dependientes={dependientes}/>}
           {tab==="perfil"&&<PerfilView profile={profile} users={users} setUsers={setUsers} role={role}/>}
