@@ -36,7 +36,7 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const VERSION="v8.3";
+const VERSION="v8.4";
 
 function getNivelDeporte(niveles,deporte){
   if(!niveles)return "";
@@ -435,6 +435,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
   const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
   const [saving,setSaving]=useState(false);
   const [editModal,setEditModal]=useState(null);
+  const [expandedClaseId,setExpandedClaseId]=useState(null);
 
   const dayKey=DAYS_LIST[dayIdx];
   const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
@@ -623,7 +624,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
         :<div className="flex flex-col gap-3">
           {dayItems.map(it=>{
             const alumnosClase=inscripciones.filter(i=>String(i.clase_id)===String(it.id)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?`${u.nombre||""} ${u.apellido||""}`.trim():i.usuario;});
-            const [expanded,setExpanded]=useState(false);
+            const isExpanded=expandedClaseId===it.id;
             return(
               <div key={it.id} className="rounded-2xl overflow-hidden" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
                 <div className="p-4">
@@ -637,12 +638,12 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
                       <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar} · {it.inscriptos}/{it.cupo} cupos</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={()=>setExpanded(e=>!e)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#E4F2F3",border:"none",cursor:"pointer"}} title="Ver alumnos"><Users size={13} color="#0B3D4C"/></button>
+                      <button onClick={()=>setExpandedClaseId(isExpanded?null:it.id)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:isExpanded?"#0B3D4C":"#E4F2F3",border:"none",cursor:"pointer"}} title="Ver alumnos"><Users size={13} color={isExpanded?"#fff":"#0B3D4C"}/></button>
                       {canManage&&<button onClick={()=>setEditModal({...it,selProf:it.usuario_profesor||""})} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>}
                     </div>
                   </div>
                 </div>
-                {expanded&&(
+                {isExpanded&&(
                   <div className="px-4 pb-3" style={{borderTop:"1px solid #F1F3F4"}}>
                     <p className="text-xs uppercase font-semibold mt-2 mb-1.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>Alumnos inscriptos ({alumnosClase.length})</p>
                     {alumnosClase.length===0?<p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos aún.</p>
