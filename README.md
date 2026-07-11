@@ -155,3 +155,19 @@ El proceso fue iterativo: cada funcionalidad se describió, se generó, se prob�
 ## Licencia
 
 Proyecto académico — FCE-UBA 2026. Uso libre para fines educativos.
+
+---
+
+## Usuarios de prueba
+
+Para explorar la aplicación sin necesidad de crear una cuenta:
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| **Admin** | admin@carriles.com | admin123 |
+| **Alumno** | test@test.com | 12345678 |
+| **Profesor (Natación)** | marina@carriles.com | marina123 |
+| **Profesor (Vóley)** | lucia@carriles.com | lucia123 |
+| **Profesor (Handball)** | tomas@carriles.com | tomas123 |
+
+> ⚠️ Son cuentas de demostración. No subir información real.
