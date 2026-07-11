@@ -36,7 +36,7 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const VERSION="v8.4";
+const VERSION="v8.6";
 
 function getNivelDeporte(niveles,deporte){
   if(!niveles)return "";
@@ -360,123 +360,10 @@ function BottomNav({tabs,active,onChange,mensajesNuevos}){
   );
 }
 
-function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripciones,activeUserId}){
-  const sportData=SPORTS.find(s=>s.id===sport);
-  const canManage=role==="admin"||role==="staff";
-  const myClaseIds=inscripciones.filter(i=>i.usuario===(activeUserId||userName)).map(i=>String(i.clase_id));
-  const items=role==="profesor"
-    ?schedule.filter(s=>s.deporte===sport&&s.usuario_profesor===userName)
-    :role==="usuario"
-    ?schedule.filter(s=>s.deporte===sport&&myClaseIds.includes(String(s.id)))
-    :schedule.filter(s=>s.deporte===sport);
-
+function ClaseModalForm({data,setData,onSave,onDelete,onClose,title,profesores,sportData,sport,saving}){
   const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
   const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
-  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
-
-  // Vista mes
-  if(vistaMes){
-    const now2=new Date();
-    const [mes,setMes]=useState(now2.getMonth());
-    const [anio,setAnio]=useState(now2.getFullYear());
-    const firstDay=new Date(anio,mes,1);
-    const lastDay=new Date(anio,mes+1,0);
-    const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
-    const totalDays=lastDay.getDate();
-    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
-    return(
-      <div className="px-4 pt-4 pb-24">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
-            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces"}}>{MESES_LABEL[mes]} {anio}</span>
-            <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
-          </div>
-          <button onClick={()=>setVistaMes(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
-        </div>
-        <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
-          <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
-            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
-          </div>
-          {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
-            <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
-              {Array.from({length:7}).map((_,di)=>{
-                const dayNum=wi*7+di-startDow+1;
-                const valid=dayNum>=1&&dayNum<=totalDays;
-                const dk=valid?getDayKey2(dayNum):"";
-                const clases=valid?items.filter(s=>s.dia===dk):[];
-                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
-                return(
-                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
-                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
-                    {clases.slice(0,2).map(c=>(
-                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
-                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
-                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
-                      </div>
-                    ))}
-                    {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Vista día
-  const today=new Date();
-  const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
-  const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
-
-  const [showNueva,setShowNueva]=useState(false);
-  const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
-  const [saving,setSaving]=useState(false);
-  const [editModal,setEditModal]=useState(null);
-  const [expandedClaseId,setExpandedClaseId]=useState(null);
-
-  const dayKey=DAYS_LIST[dayIdx];
-  const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
-
-  const saveNueva=async()=>{
-    if(!draft.selProf){alert("Seleccioná un profesor.");return;}
-    if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
-    if(!draft.dias||draft.dias.length===0){alert("Seleccioná al menos un día.");return;}
-    setSaving(true);
-    const profUser=users.find(u=>u.usuario===draft.selProf);
-    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
-    const rows=draft.dias.map(dia=>({deporte:sport,dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}));
-    const {data,error}=await supabase.from("clases").insert(rows).select();
-    if(error){alert("Error al guardar: "+error.message);setSaving(false);return;}
-    if(data)setSchedule(p=>[...p,...data]);
-    setSaving(false);setShowNueva(false);
-  };
-
-  const saveEdit=async()=>{
-    if(!editModal)return;
-    setSaving(true);
-    const profUser=users.find(u=>u.usuario===editModal.selProf);
-    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
-    const {error}=await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
-    if(error){alert("Error: "+error.message);setSaving(false);return;}
-    setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
-    setSaving(false);setEditModal(null);
-  };
-
-  const deleteClase=async(id)=>{
-    await supabase.from("clases").delete().eq("id",id);
-    setSchedule(p=>p.filter(s=>s.id!==id));
-    setEditModal(null);
-  };
-
-  if(role==="usuario"&&items.length===0){
-    return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría.</p></div>);
-  }
-
-  // Modal form compartido (nueva o editar)
-  const ModalForm=({data,setData,onSave,onDelete,onClose,title})=>(
+  return(
     <div className="fixed inset-0 z-50 flex items-end" style={{background:"rgba(11,61,76,0.6)"}} onClick={onClose}>
       <div className="w-full max-w-2xl mx-auto rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto" style={{background:"#F7F5EF"}} onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
@@ -546,13 +433,10 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
         </div>
       </div>
     </div>
-  );
+}
 
   // Vista mes
   if(vistaMes){
-    const now2=new Date();
-    const [mes,setMes]=useState(now2.getMonth());
-    const [anio,setAnio]=useState(now2.getFullYear());
     const firstDay=new Date(anio,mes,1);
     const lastDay=new Date(anio,mes+1,0);
     const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
@@ -659,7 +543,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
       {showNueva&&<ModalForm data={draft} setData={setDraft} onSave={saveNueva} onClose={()=>setShowNueva(false)} title="Nueva clase"/>}
       {editModal&&<ModalForm data={editModal} setData={setEditModal} onSave={saveEdit} onDelete={()=>deleteClase(editModal.id)} onClose={()=>setEditModal(null)} title="Editar clase"/>}
     </div>
-  );
+}
 }
 
 function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,userName,schedule,setSchedule,inscripciones,setInscripciones,users,activeUserId}){
@@ -835,7 +719,7 @@ function SolicitudesView({requests,setRequests,mensajes,setMensajes,sport,role,u
         </div>
       )}
     </div>
-  );
+}
 }
 
 function PaymentView({sport,role,comprobantes,setComprobantes,mySports,activeUserId,userName}){
@@ -900,7 +784,7 @@ function PaymentView({sport,role,comprobantes,setComprobantes,mySports,activeUse
         </>
       )}
     </div>
-  );
+}
 }
 
 function RevisionMedica({revisiones,setRevisiones,role,userName,users,activeUserId}){
@@ -916,6 +800,123 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users,activeUser
   const [saving,setSaving]=useState(false);
   const [saveError,setSaveError]=useState("");
   const rev=revisiones.find(r=>r.usuario===selected)||{usuario:selected,rev1:"",rev2:"",apto:""};
+
+function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripciones,activeUserId}){
+  const sportData=SPORTS.find(s=>s.id===sport);
+  const canManage=role==="admin"||role==="staff";
+  const myClaseIds=inscripciones.filter(i=>i.usuario===(activeUserId||userName)).map(i=>String(i.clase_id));
+  const items=role==="profesor"
+    ?schedule.filter(s=>s.deporte===sport&&s.usuario_profesor===userName)
+    :role==="usuario"
+    ?schedule.filter(s=>s.deporte===sport&&myClaseIds.includes(String(s.id)))
+    :schedule.filter(s=>s.deporte===sport);
+
+  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
+  const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
+  const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
+
+  // Vista mes
+  if(vistaMes){
+    const firstDay=new Date(anio,mes,1);
+    const lastDay=new Date(anio,mes+1,0);
+    const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
+    const totalDays=lastDay.getDate();
+    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+    return(
+      <div className="px-4 pt-4 pb-24">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
+            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces"}}>{MESES_LABEL[mes]} {anio}</span>
+            <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
+          </div>
+          <button onClick={()=>setVistaMes(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
+          <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
+            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
+          </div>
+          {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
+            <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
+              {Array.from({length:7}).map((_,di)=>{
+                const dayNum=wi*7+di-startDow+1;
+                const valid=dayNum>=1&&dayNum<=totalDays;
+                const dk=valid?getDayKey2(dayNum):"";
+                const clases=valid?items.filter(s=>s.dia===dk):[];
+                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
+                return(
+                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
+                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
+                    {clases.slice(0,2).map(c=>(
+                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
+                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
+                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
+                      </div>
+                    ))}
+                    {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Vista día
+  const today=new Date();
+  const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
+  const [dayIdx,setDayIdx]=useState(todayIdx<6?todayIdx:0);
+
+  const [showNueva,setShowNueva]=useState(false);
+  const [draft,setDraft]=useState({dia:"Lun",hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});
+  const [saving,setSaving]=useState(false);
+  const [editModal,setEditModal]=useState(null);
+  const [expandedClaseId,setExpandedClaseId]=useState(null);
+  const now2=new Date();
+  const [mes,setMes]=useState(now2.getMonth());
+  const [anio,setAnio]=useState(now2.getFullYear());
+
+  const dayKey=DAYS_LIST[dayIdx];
+  const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
+
+  const saveNueva=async()=>{
+    if(!draft.selProf){alert("Seleccioná un profesor.");return;}
+    if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
+    if(!draft.dias||draft.dias.length===0){alert("Seleccioná al menos un día.");return;}
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===draft.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
+    const rows=draft.dias.map(dia=>({deporte:sport,dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}));
+    const {data,error}=await supabase.from("clases").insert(rows).select();
+    if(error){alert("Error al guardar: "+error.message);setSaving(false);return;}
+    if(data)setSchedule(p=>[...p,...data]);
+    setSaving(false);setShowNueva(false);
+  };
+
+  const saveEdit=async()=>{
+    if(!editModal)return;
+    setSaving(true);
+    const profUser=users.find(u=>u.usuario===editModal.selProf);
+    const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
+    const {error}=await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
+    if(error){alert("Error: "+error.message);setSaving(false);return;}
+    setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
+    setSaving(false);setEditModal(null);
+  };
+
+  const deleteClase=async(id)=>{
+    await supabase.from("clases").delete().eq("id",id);
+    setSchedule(p=>p.filter(s=>s.id!==id));
+    setEditModal(null);
+  };
+
+  if(role==="usuario"&&items.length===0){
+    return(<div className="px-4 pt-10 pb-24 text-center"><p className="text-4xl mb-3">📭</p><p className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>No tenés clases asignadas en este deporte</p><p className="text-sm mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Consultá en secretaría.</p></div>);
+  }
+
+
   const saveEdit=async()=>{
     if(!draft.rev1){setSaveError("La primera revisión es obligatoria.");return;}
     if(esSegundaFase&&!draft.rev2){setSaveError("La segunda revisión es obligatoria a partir del día 18.");return;}
@@ -1488,13 +1489,13 @@ function CalendarioMes({schedule,setSchedule,users}){
   const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
 
   // Generar días del mes
-  const firstDay=new Date(anio,mes,1);
-  const lastDay=new Date(anio,mes+1,0);
+  const firstDay=new Date(anioC,mesC,1);
+  const lastDay=new Date(anioC,mesC+1,0);
   const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1; // 0=Lun
   const totalDays=lastDay.getDate();
 
   // Para cada día del mes, saber qué día de semana es
-  const getDayKey=(d)=>{const dow=new Date(anio,mes,d).getDay();return ["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+  const getDayKey=(d)=>{const dow=new Date(anioC,mesC,d).getDay();return ["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
   const getClasesForDay=(d)=>{
     const dk=getDayKey(d);
     return schedule.filter(s=>s.deporte===activeSport&&s.dia===dk);
@@ -1505,9 +1506,9 @@ function CalendarioMes({schedule,setSchedule,users}){
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Calendario</h2>
         <div className="flex items-center gap-2">
-          <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
-          <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{MESES_LABEL[mes]} {anio}</span>
-          <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
+          <button onClick={()=>{if(mesC===0){setMesC(11);setAnioC(a=>a-1);}else setMesC(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
+          <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{MESES_LABEL[mesC]} {anioC}</span>
+          <button onClick={()=>{if(mesC===11){setMesC(0);setAnioC(a=>a+1);}else setMesC(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
         </div>
       </div>
       <div className="flex gap-2 overflow-x-auto mb-3" style={{scrollbarWidth:"none"}}>
