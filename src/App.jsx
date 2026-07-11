@@ -36,8 +36,30 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const VERSION="v8.2";
+const VERSION="v8.3";
 
+function getNivelDeporte(niveles,deporte){
+  if(!niveles)return "";
+  const found=(niveles.split(";")).find(n=>n.startsWith(deporte+":"));
+  return found?found.split(":")[1]:"";
+}
+function setNivelDeporte(niveles,deporte,nivel){
+  const parts=(niveles||"").split(";").filter(n=>n&&!n.startsWith(deporte+":"));
+  if(nivel)parts.push(deporte+":"+nivel);
+  return parts.join(";");
+}
+function getCategoriaAlumno(alumno,deporte){
+  // Para natacion: por edad
+  if(deporte==="natacion"){
+    const edad=calcEdad(alumno.fecha_nacimiento);
+    if(edad===null)return null;
+    if(edad<=12)return "Infantil";
+    if(edad<=17)return "Juvenil";
+    return getNivelDeporte(alumno.niveles,"natacion")||null;
+  }
+  // Para voley/handball: por nivel asignado
+  return getNivelDeporte(alumno.niveles,deporte)||null;
+}
 function calcEdad(f){if(!f)return null;const h=new Date(),n=new Date(f);let e=h.getFullYear()-n.getFullYear();if(h.getMonth()-n.getMonth()<0||(h.getMonth()-n.getMonth()===0&&h.getDate()<n.getDate()))e--;return e;}
 function nextDateForDay(d){const now=new Date(),dow=now.getDay();const t={Lun:1,Mar:2,Mie:3,Jue:4,Vie:5,Sab:6}[d]||1;let diff=t-dow;if(diff<0)diff+=7;const r=new Date(now);r.setDate(now.getDate()+diff);return r;}
 function formatShortDate(d){return `${DIAS_ES[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;}
@@ -352,6 +374,58 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
   const HOURS_LIST=["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
   const profesores=users.filter(u=>u.rol==="profesor"&&u.deportes&&u.deportes.split(";").map(s=>s.trim()).includes(sport));
 
+  // Vista mes
+  if(vistaMes){
+    const now2=new Date();
+    const [mes,setMes]=useState(now2.getMonth());
+    const [anio,setAnio]=useState(now2.getFullYear());
+    const firstDay=new Date(anio,mes,1);
+    const lastDay=new Date(anio,mes+1,0);
+    const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
+    const totalDays=lastDay.getDate();
+    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+    return(
+      <div className="px-4 pt-4 pb-24">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
+            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces"}}>{MESES_LABEL[mes]} {anio}</span>
+            <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
+          </div>
+          <button onClick={()=>setVistaMes(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
+          <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
+            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
+          </div>
+          {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
+            <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
+              {Array.from({length:7}).map((_,di)=>{
+                const dayNum=wi*7+di-startDow+1;
+                const valid=dayNum>=1&&dayNum<=totalDays;
+                const dk=valid?getDayKey2(dayNum):"";
+                const clases=valid?items.filter(s=>s.dia===dk):[];
+                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
+                return(
+                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
+                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
+                    {clases.slice(0,2).map(c=>(
+                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
+                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
+                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
+                      </div>
+                    ))}
+                    {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Vista día
   const today=new Date();
   const todayIdx=today.getDay()===0?6:today.getDay()-1; // 0=Lun
@@ -473,6 +547,58 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
     </div>
   );
 
+  // Vista mes
+  if(vistaMes){
+    const now2=new Date();
+    const [mes,setMes]=useState(now2.getMonth());
+    const [anio,setAnio]=useState(now2.getFullYear());
+    const firstDay=new Date(anio,mes,1);
+    const lastDay=new Date(anio,mes+1,0);
+    const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1;
+    const totalDays=lastDay.getDate();
+    const getDayKey2=(d)=>{const dow=new Date(anio,mes,d).getDay();return["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+    return(
+      <div className="px-4 pt-4 pb-24">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
+            <span className="font-semibold" style={{color:"#33414A",fontFamily:"Fraunces"}}>{MESES_LABEL[mes]} {anio}</span>
+            <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
+          </div>
+          <button onClick={()=>setVistaMes(false)} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{background:"#E4F2F3",color:"#0B3D4C",border:"none",cursor:"pointer"}}>Vista Día</button>
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
+          <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
+            {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
+          </div>
+          {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
+            <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
+              {Array.from({length:7}).map((_,di)=>{
+                const dayNum=wi*7+di-startDow+1;
+                const valid=dayNum>=1&&dayNum<=totalDays;
+                const dk=valid?getDayKey2(dayNum):"";
+                const clases=valid?items.filter(s=>s.dia===dk):[];
+                const isToday=valid&&dayNum===now2.getDate()&&mes===now2.getMonth()&&anio===now2.getFullYear();
+                return(
+                  <div key={di} className="p-1 min-h-[56px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
+                    {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
+                    {clases.slice(0,2).map(c=>(
+                      <div key={c.id} className="rounded px-1 py-0.5 mb-0.5" style={{background:sportData?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
+                        {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
+                        <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""} {c.categoria?.slice(0,4)||""}</span>
+                      </div>
+                    ))}
+                    {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3"}}>+{clases.length-2}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Vista día
   return(
     <div className="px-4 pt-4 pb-24">
@@ -495,21 +621,38 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
       {dayItems.length===0
         ?<div className="text-center py-12"><p className="text-3xl mb-2">📅</p><p className="text-sm" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin clases este día{canManage?" · Tocá + Nueva para agregar":""}</p></div>
         :<div className="flex flex-col gap-3">
-          {dayItems.map(it=>(
-            <div key={it.id} className="rounded-2xl p-4" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-sm font-bold" style={{color:"#0B3D4C",fontFamily:"IBM Plex Mono"}}>{it.hora}{it.hora_fin?" – "+it.hora_fin:""}</span>
-                    {it.categoria&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:sportData?.color+"22",color:sportData?.color,fontFamily:"Inter"}}>{it.categoria}</span>}
+          {dayItems.map(it=>{
+            const alumnosClase=inscripciones.filter(i=>String(i.clase_id)===String(it.id)).map(i=>{const u=users.find(u=>u.usuario===i.usuario);return u?`${u.nombre||""} ${u.apellido||""}`.trim():i.usuario;});
+            const [expanded,setExpanded]=useState(false);
+            return(
+              <div key={it.id} className="rounded-2xl overflow-hidden" style={{background:"#fff",border:"1px solid #E2E8ED"}}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm font-bold" style={{color:"#0B3D4C",fontFamily:"IBM Plex Mono"}}>{it.hora}{it.hora_fin?" – "+it.hora_fin:""}</span>
+                        {it.categoria&&<span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background:sportData?.color+"22",color:sportData?.color,fontFamily:"Inter"}}>{it.categoria}</span>}
+                      </div>
+                      <p className="font-semibold text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{it.profesor}</p>
+                      <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar} · {it.inscriptos}/{it.cupo} cupos</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={()=>setExpanded(e=>!e)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#E4F2F3",border:"none",cursor:"pointer"}} title="Ver alumnos"><Users size={13} color="#0B3D4C"/></button>
+                      {canManage&&<button onClick={()=>setEditModal({...it,selProf:it.usuario_profesor||""})} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>}
+                    </div>
                   </div>
-                  <p className="font-semibold text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{it.profesor}</p>
-                  <p className="text-xs mt-0.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>{it.lugar} · {it.inscriptos}/{it.cupo} cupos</p>
                 </div>
-                {canManage&&<button onClick={()=>setEditModal({...it,selProf:it.usuario_profesor||""})} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{background:"#F1F3F4",border:"none",cursor:"pointer"}}><Pencil size={13} color="#33414A"/></button>}
+                {expanded&&(
+                  <div className="px-4 pb-3" style={{borderTop:"1px solid #F1F3F4"}}>
+                    <p className="text-xs uppercase font-semibold mt-2 mb-1.5" style={{color:"#8A99A3",fontFamily:"Inter"}}>Alumnos inscriptos ({alumnosClase.length})</p>
+                    {alumnosClase.length===0?<p className="text-xs" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sin alumnos aún.</p>
+                      :alumnosClase.map(a=><div key={a} className="flex items-center gap-2 py-1"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{background:"#E4F2F3",color:"#0B3D4C"}}>{a[0]||"?"}</div><span className="text-sm" style={{color:"#33414A",fontFamily:"Inter"}}>{a}</span></div>)
+                    }
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       }
       {showNueva&&<ModalForm data={draft} setData={setDraft} onSave={saveNueva} onClose={()=>setShowNueva(false)} title="Nueva clase"/>}
@@ -845,7 +988,7 @@ function RevisionMedica({revisiones,setRevisiones,role,userName,users,activeUser
 }
 
 function EditarAlumno({alumno,onSave,onBack}){
-  const [form,setForm]=useState({nombre:alumno.nombre||"",apellido:alumno.apellido||"",dni:alumno.dni||"",fecha_nacimiento:alumno.fecha_nacimiento||"",sexo:alumno.sexo||"",deportes:alumno.deportes?alumno.deportes.split(";"):[],rol:alumno.rol||"usuario"});
+  const [form,setForm]=useState({nombre:alumno.nombre||"",apellido:alumno.apellido||"",dni:alumno.dni||"",fecha_nacimiento:alumno.fecha_nacimiento||"",sexo:alumno.sexo||"",deportes:alumno.deportes?alumno.deportes.split(";"):[],rol:alumno.rol||"usuario",niveles:alumno.niveles||""});
   const [saving,setSaving]=useState(false);
   const [msg,setMsg]=useState("");
   const [resetMsg,setResetMsg]=useState("");
@@ -853,9 +996,9 @@ function EditarAlumno({alumno,onSave,onBack}){
   const toggleDep=(d)=>setForm(p=>({...p,deportes:p.deportes.includes(d)?p.deportes.filter(x=>x!==d):[...p.deportes,d]}));
   const save=async()=>{
     setSaving(true);
-    const {error}=await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido,dni:form.dni,fecha_nacimiento:form.fecha_nacimiento||null,sexo:form.sexo,deportes:form.deportes.join(";"),rol:form.rol}).eq("id",alumno.id);
+    const {error}=await supabase.from("usuarios").update({nombre:form.nombre,apellido:form.apellido,dni:form.dni,fecha_nacimiento:form.fecha_nacimiento||null,sexo:form.sexo,deportes:form.deportes.join(";"),rol:form.rol,niveles:form.niveles}).eq("id",alumno.id);
     if(error)setMsg("Error: "+error.message);
-    else{setMsg("✓ Guardado");onSave({...alumno,...form,deportes:form.deportes.join(";")});}
+    else{setMsg("✓ Guardado");onSave({...alumno,...form,deportes:form.deportes.join(";"),niveles:form.niveles});}
     setSaving(false);
   };
   const resetPass=async()=>{
@@ -877,6 +1020,29 @@ function EditarAlumno({alumno,onSave,onBack}){
           <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Sexo</label><select value={form.sexo} onChange={e=>setForm({...form,sexo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}><option value="">Sin especificar</option><option value="M">Masculino</option><option value="F">Femenino</option><option value="X">No binario</option></select></div>
           <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Rol</label><select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}><option value="usuario">Alumno</option><option value="profesor">Profesor</option><option value="staff">Secretaría</option><option value="admin">Admin</option></select></div>
           <div><label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Deportes</label><div className="grid grid-cols-2 gap-2">{opDep.map(d=>{const s=SPORTS.find(sp=>sp.id===d);return(<button key={d} type="button" onClick={()=>toggleDep(d)} className="p-2 rounded-xl text-sm font-semibold" style={{background:form.deportes.includes(d)?s?.color:"#F1F3F4",color:form.deportes.includes(d)?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{s?.emoji} {s?.name}</button>);})}</div></div>
+          {form.deportes.length>0&&(
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Nivel por deporte</label>
+              <div className="flex flex-col gap-2">
+                {form.deportes.map(d=>{
+                  const s=SPORTS.find(sp=>sp.id===d);
+                  const cats=d==="natacion"?["Adulto Inicial","Adulto Intermedio","Adulto Avanzado"]:s?.categorias||[];
+                  if(cats.length===0)return null;
+                  return(
+                    <div key={d} className="flex items-center gap-2">
+                      <span className="text-xs font-semibold w-20 shrink-0" style={{color:s?.color,fontFamily:"Inter"}}>{s?.emoji} {s?.name}</span>
+                      <select value={getNivelDeporte(form.niveles,d)} onChange={e=>setForm({...form,niveles:setNivelDeporte(form.niveles,d,e.target.value)})}
+                        className="flex-1 border rounded-lg px-2 py-1.5 text-xs" style={{borderColor:"#E2E8ED",fontFamily:"Inter"}}>
+                        <option value="">Sin nivel</option>
+                        {cats.map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-1" style={{color:"#8A99A3",fontFamily:"Inter"}}>Natación: el nivel adulto se asigna aquí. Infantil y Juvenil se calculan por edad.</p>
+            </div>
+          )}
           <button onClick={save} disabled={saving} className="w-full text-white text-sm font-semibold rounded-lg py-2.5" style={{background:"#0B3D4C",border:"none",cursor:"pointer",fontFamily:"Inter"}}>{saving?"Guardando...":"Guardar cambios"}</button>
           <div className="pt-3" style={{borderTop:"1px solid #E2E8ED"}}>
             <button onClick={resetPass} className="w-full text-sm font-semibold rounded-lg py-2.5" style={{background:"#FDF3D6",color:"#8A6A0A",border:"1px solid #F2C230",cursor:"pointer",fontFamily:"Inter"}}>🔑 Enviar email para restablecer contraseña</button>
@@ -919,7 +1085,12 @@ function GestionarClases({alumno,schedule,inscripciones,setInscripciones,setSche
     }
     setSaving(false);
   };
-  const clases=schedule.filter(s=>s.deporte===activeSport);
+  const catAlumno=getCategoriaAlumno(alumno,activeSport);
+  const clases=schedule.filter(s=>{
+    if(s.deporte!==activeSport)return false;
+    if(!s.categoria||!catAlumno)return true; // sin categoría = cualquiera puede
+    return s.categoria===catAlumno;
+  });
   return(
     <div className="px-4 pt-4 pb-24">
       <div className="flex items-center gap-3 mb-2"><button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"#2E9CAB",fontFamily:"Inter",fontSize:"14px"}}>← Volver</button><h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Clases de {alumno.nombre}</h2></div>
@@ -1468,10 +1639,10 @@ export default function App(){
     ?[{id:"horarios",label:"Mis clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},...(hasNatacion?[{id:"medica",label:"Médica",icon:Stethoscope}]:[]),{id:"perfil",label:"Perfil",icon:User}]
     :role==="staff"
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
-    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
+    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
 
   const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia",calendario:"Calendario"};
-  const noSportTabs=["perfil","alumnos","dependientes","calendario",...(role==="staff"||role==="admin"?["pagos"]:[])];
+  const noSportTabs=["perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
   const hasTutor=role==="usuario"&&dependientes.length>0;
 
   if(showCrear)return(
@@ -1516,7 +1687,7 @@ export default function App(){
         :<>
           {tab==="horarios"&&<ClasesView schedule={schedule} setSchedule={setSchedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
           {tab==="solicitudes"&&<SolicitudesView requests={requests} setRequests={setRequests} mensajes={mensajes} setMensajes={setMensajes} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users} activeUserId={activeUserId}/>}
-          {tab==="calendario"&&role==="admin"&&<CalendarioMes schedule={schedule} setSchedule={setSchedule} users={users}/>}
+          
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} activeUserId={activeUserId} userName={profile.usuario}/>}
           
           {tab==="medica"&&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users} activeUserId={activeUserId}/>}
