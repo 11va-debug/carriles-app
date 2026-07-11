@@ -36,6 +36,7 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const VERSION="v8.1";
 
 function calcEdad(f){if(!f)return null;const h=new Date(),n=new Date(f);let e=h.getFullYear()-n.getFullYear();if(h.getMonth()-n.getMonth()<0||(h.getMonth()-n.getMonth()===0&&h.getDate()<n.getDate()))e--;return e;}
 function nextDateForDay(d){const now=new Date(),dow=now.getDay();const t={Lun:1,Mar:2,Mie:3,Jue:4,Vie:5,Sab:6}[d]||1;let diff=t-dow;if(diff<0)diff+=7;const r=new Date(now);r.setDate(now.getDate()+diff);return r;}
@@ -98,7 +99,7 @@ function Login({onLogin,resetError,onClearError}){
             </div>
           }
         </div>
-        <p className="text-xs mt-6 text-center" style={{color:"#5D8A96",fontFamily:"Inter"}}>Diplomatura IA FCE-UBA 2026</p>
+        <p className="text-xs mt-6 text-center" style={{color:"#5D8A96",fontFamily:"Inter"}}>Diplomatura IA FCE-UBA 2026 · {VERSION}</p>
       </div>
     </div>
   );
@@ -240,7 +241,7 @@ function Header({profile,title,onLogout,pendingCount,onBell,sport,activeProfile}
           <button onClick={onLogout} className="w-9 h-9 rounded-full flex items-center justify-center" style={{background:"rgba(255,255,255,0.15)",border:"none",cursor:"pointer"}}><LogOut size={16} color="#F7F5EF"/></button>
         </div>
       </div>
-      <p className="relative z-10 text-sm mt-1" style={{color:"#F2C230",fontFamily:"Inter"}}>{displayName}</p>
+      <p className="relative z-10 text-sm mt-1" style={{color:"#F2C230",fontFamily:"Inter"}}>{displayName} <span style={{fontSize:"10px",opacity:0.6}}>{VERSION}</span></p>
       {(profile.rol==="usuario"||profile.rol==="profesor")&&(
         <p className="relative z-10 text-xs mt-0.5" style={{color:"rgba(255,255,255,0.5)",fontFamily:"Inter"}}>
           {DIAS_ES[now.getDay()]} {now.getDate()} de {MESES_ES[now.getMonth()]} · {String(now.getHours()).padStart(2,"0")}:{String(now.getMinutes()).padStart(2,"0")}
@@ -365,11 +366,13 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
   const dayItems=items.filter(it=>it.dia===dayKey).sort((a,b)=>a.hora.localeCompare(b.hora));
 
   const saveNueva=async()=>{
-    if(!draft.selProf||!draft.lugar)return;
+    if(!draft.selProf){alert("Seleccioná un profesor.");return;}
+    if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
     setSaving(true);
     const profUser=users.find(u=>u.usuario===draft.selProf);
     const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
-    const {data}=await supabase.from("clases").insert([{deporte:sport,dia:draft.dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}]).select().single();
+    const {data,error}=await supabase.from("clases").insert([{deporte:sport,dia:draft.dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}]).select().single();
+    if(error){alert("Error al guardar: "+error.message);setSaving(false);return;}
     if(data)setSchedule(p=>[...p,data]);
     setSaving(false);setShowNueva(false);
   };
@@ -379,7 +382,8 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
     setSaving(true);
     const profUser=users.find(u=>u.usuario===editModal.selProf);
     const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():editModal.profesor;
-    await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
+    const {error}=await supabase.from("clases").update({dia:editModal.dia,hora:editModal.hora,hora_fin:editModal.hora_fin,profesor:profNombre,usuario_profesor:editModal.selProf,lugar:editModal.lugar,cupo:editModal.cupo,categoria:editModal.categoria}).eq("id",editModal.id);
+    if(error){alert("Error: "+error.message);setSaving(false);return;}
     setSchedule(p=>p.map(s=>s.id===editModal.id?{...s,...editModal,profesor:profNombre}:s));
     setSaving(false);setEditModal(null);
   };
@@ -431,6 +435,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
               <option value="">— Seleccioná —</option>
               {profesores.map(p=><option key={p.id} value={p.usuario}>{p.nombre} {p.apellido||""}</option>)}
             </select>
+            {profesores.length===0&&<p className="text-xs mt-1 font-semibold" style={{color:"#E8622C",fontFamily:"Inter"}}>⚠ No hay profesores con este deporte asignado. Creá un profesor con este deporte primero.</p>}
           </div>
           {sportData?.lugares&&sportData.lugares.length>0&&(
             <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>{sport==="natacion"?"Carril":"Lugar"}</label>
