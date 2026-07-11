@@ -36,7 +36,7 @@ const HOURS     = ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:0
 const DIAS_ES   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 const MESES_ES  = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MESES_LABEL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const VERSION="v8.1";
+const VERSION="v8.2";
 
 function calcEdad(f){if(!f)return null;const h=new Date(),n=new Date(f);let e=h.getFullYear()-n.getFullYear();if(h.getMonth()-n.getMonth()<0||(h.getMonth()-n.getMonth()===0&&h.getDate()<n.getDate()))e--;return e;}
 function nextDateForDay(d){const now=new Date(),dow=now.getDay();const t={Lun:1,Mar:2,Mie:3,Jue:4,Vie:5,Sab:6}[d]||1;let diff=t-dow;if(diff<0)diff+=7;const r=new Date(now);r.setDate(now.getDate()+diff);return r;}
@@ -368,12 +368,14 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
   const saveNueva=async()=>{
     if(!draft.selProf){alert("Seleccioná un profesor.");return;}
     if(!draft.lugar){alert("Seleccioná un lugar/carril.");return;}
+    if(!draft.dias||draft.dias.length===0){alert("Seleccioná al menos un día.");return;}
     setSaving(true);
     const profUser=users.find(u=>u.usuario===draft.selProf);
     const profNombre=profUser?`${profUser.nombre||""} ${profUser.apellido||""}`.trim():"";
-    const {data,error}=await supabase.from("clases").insert([{deporte:sport,dia:draft.dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}]).select().single();
+    const rows=draft.dias.map(dia=>({deporte:sport,dia,hora:draft.hora,hora_fin:draft.hora_fin,profesor:profNombre,usuario_profesor:draft.selProf,lugar:draft.lugar,cupo:draft.cupo,inscriptos:0,categoria:draft.categoria}));
+    const {data,error}=await supabase.from("clases").insert(rows).select();
     if(error){alert("Error al guardar: "+error.message);setSaving(false);return;}
-    if(data)setSchedule(p=>[...p,data]);
+    if(data)setSchedule(p=>[...p,...data]);
     setSaving(false);setShowNueva(false);
   };
 
@@ -407,12 +409,21 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#8A99A3"}}><X size={20}/></button>
         </div>
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Día</label>
-              <select value={data.dia} onChange={e=>setData({...data,dia:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}>
-                {DAYS_LIST.map(d=><option key={d} value={d}>{DAY_LABELS[d]||d}</option>)}
-              </select>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide mb-2 block" style={{color:"#8A99A3",fontFamily:"Inter"}}>Días</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DAYS_LIST.map(d=>{
+                const dias=data.dias||[data.dia].filter(Boolean);
+                const sel=dias.includes(d);
+                return(<button key={d} type="button" onClick={()=>{const cur=data.dias||[data.dia].filter(Boolean);setData({...data,dias:sel?cur.filter(x=>x!==d):[...cur,d]});}}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{background:sel?"#0B3D4C":"#F1F3F4",color:sel?"#fff":"#33414A",border:"none",cursor:"pointer",fontFamily:"Inter"}}>
+                  {DAY_LABELS[d]||d}
+                </button>);
+              })}
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div style={{display:"none"}}></div>
             <div><label className="text-xs font-semibold uppercase tracking-wide" style={{color:"#8A99A3",fontFamily:"Inter"}}>Cupo</label>
               <input type="number" value={data.cupo} onChange={e=>setData({...data,cupo:+e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" style={{borderColor:"#E2E8ED"}}/>
             </div>
@@ -476,7 +487,7 @@ function ClasesView({schedule,setSchedule,sport,role,users,userName,inscripcione
           <button onClick={()=>setDayIdx(i=>(i+1)%6)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer",fontSize:"16px"}}>›</button>
         </div>
         <div className="flex gap-2">
-          {canManage&&<button onClick={()=>{setDraft({dia:dayKey,hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});setShowNueva(true);}} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-1.5 rounded-full" style={{background:"#E8622C",border:"none",cursor:"pointer"}}><Plus size={13}/>Nueva</button>}
+          {canManage&&<button onClick={()=>{setDraft({dias:[dayKey],hora:"09:00",hora_fin:"10:00",lugar:sportData?.lugares?.[0]||"",cupo:10,categoria:sportData?.categorias?.[0]||"",selProf:""});setShowNueva(true);}} className="flex items-center gap-1 text-xs font-semibold text-white px-3 py-1.5 rounded-full" style={{background:"#E8622C",border:"none",cursor:"pointer"}}><Plus size={13}/>Nueva</button>}
 
         </div>
       </div>
@@ -885,7 +896,8 @@ function GestionarClases({alumno,schedule,inscripciones,setInscripciones,setSche
   const [activeSport,setActiveSport]=useState(mySports[0]||null);
   const myClaseIds=inscripciones.filter(i=>i.usuario===alumno.usuario).map(i=>String(i.clase_id));
   const isAssigned=(id)=>myClaseIds.includes(String(id));
-  const getConflict=(c)=>schedule.filter(s=>myClaseIds.includes(String(s.id))).find(s=>s.dia===c.dia&&s.hora===c.hora&&s.id!==c.id);
+  // Un alumno solo puede tener 1 clase por deporte por día
+  const getConflict=(c)=>schedule.filter(s=>myClaseIds.includes(String(s.id))&&s.deporte===c.deporte).find(s=>s.dia===c.dia&&s.id!==c.id);
   const toggle=async(clase)=>{
     setSaving(true);setMsg("");
     if(isAssigned(clase.id)){
@@ -1294,6 +1306,81 @@ function CalendarDashboard({schedule,setSchedule,users}){
   );
 }
 
+/* ── CALENDARIO MES (solo admin) ── */
+function CalendarioMes({schedule,setSchedule,users}){
+  const [activeSport,setActiveSport]=useState("natacion");
+  const sport=SPORTS.find(s=>s.id===activeSport);
+  const now=new Date();
+  const [mes,setMes]=useState(now.getMonth());
+  const [anio,setAnio]=useState(now.getFullYear());
+  const DAYS_LIST=["Lun","Mar","Mie","Jue","Vie","Sab"];
+
+  // Generar días del mes
+  const firstDay=new Date(anio,mes,1);
+  const lastDay=new Date(anio,mes+1,0);
+  const startDow=firstDay.getDay()===0?6:firstDay.getDay()-1; // 0=Lun
+  const totalDays=lastDay.getDate();
+
+  // Para cada día del mes, saber qué día de semana es
+  const getDayKey=(d)=>{const dow=new Date(anio,mes,d).getDay();return ["Dom","Lun","Mar","Mie","Jue","Vie","Sab"][dow];};
+  const getClasesForDay=(d)=>{
+    const dk=getDayKey(d);
+    return schedule.filter(s=>s.deporte===activeSport&&s.dia===dk);
+  };
+
+  return(
+    <div className="px-4 pt-4 pb-24">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>Calendario</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={()=>{if(mes===0){setMes(11);setAnio(a=>a-1);}else setMes(m=>m-1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>‹</button>
+          <span className="text-sm font-semibold" style={{color:"#33414A",fontFamily:"Inter"}}>{MESES_LABEL[mes]} {anio}</span>
+          <button onClick={()=>{if(mes===11){setMes(0);setAnio(a=>a+1);}else setMes(m=>m+1);}} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:"#fff",border:"1px solid #E2E8ED",cursor:"pointer"}}>›</button>
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-x-auto mb-3" style={{scrollbarWidth:"none"}}>
+        {SPORTS.map(s=>(
+          <button key={s.id} onClick={()=>setActiveSport(s.id)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{background:activeSport===s.id?s.color:"#fff",color:activeSport===s.id?"#fff":"#33414A",border:`1px solid ${activeSport===s.id?s.color:"#E2E8ED"}`,cursor:"pointer",fontFamily:"Inter"}}>
+            {s.emoji} {s.name}
+          </button>
+        ))}
+      </div>
+      {/* Cabecera días */}
+      <div className="rounded-2xl overflow-hidden" style={{border:"1px solid #E2E8ED"}}>
+        <div className="grid grid-cols-7" style={{background:"#0B3D4C"}}>
+          {["Lu","Ma","Mi","Ju","Vi","Sá","Do"].map(d=><div key={d} className="p-1.5 text-center text-xs font-bold" style={{color:"#9FC4CE",fontFamily:"Inter"}}>{d}</div>)}
+        </div>
+        {/* Semanas */}
+        {Array.from({length:Math.ceil((startDow+totalDays)/7)}).map((_,wi)=>(
+          <div key={wi} className="grid grid-cols-7" style={{borderTop:"1px solid #E2E8ED"}}>
+            {Array.from({length:7}).map((_,di)=>{
+              const dayNum=wi*7+di-startDow+1;
+              const valid=dayNum>=1&&dayNum<=totalDays;
+              const clases=valid?getClasesForDay(dayNum):[];
+              const isToday=valid&&dayNum===now.getDate()&&mes===now.getMonth()&&anio===now.getFullYear();
+              return(
+                <div key={di} className="p-1 min-h-[60px]" style={{borderRight:di<6?"1px solid #E2E8ED":"none",background:isToday?"#E4F2F3":"#fff"}}>
+                  {valid&&<p className="text-xs font-bold mb-0.5" style={{color:isToday?"#0B3D4C":"#8A99A3",fontFamily:"Inter"}}>{dayNum}</p>}
+                  {clases.slice(0,2).map(c=>(
+                    <div key={c.id} className="rounded px-1 py-0.5 mb-0.5 leading-tight" style={{background:sport?.color+"22",fontSize:"8px",fontWeight:600,color:"#33414A",fontFamily:"Inter"}}>
+                      {c.hora}{c.hora_fin?" – "+c.hora_fin:""}<br/>
+                      <span style={{color:"#8A99A3",fontSize:"7px"}}>{c.lugar?.replace("Carril ","C")||""}</span>
+                    </div>
+                  ))}
+                  {clases.length>2&&<p style={{fontSize:"7px",color:"#8A99A3",fontFamily:"Inter"}}>+{clases.length-2} más</p>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-center mt-2" style={{color:"#8A99A3",fontFamily:"Inter"}}>Vista de clases del mes · Para editar andá a Clases</p>
+    </div>
+  );
+}
+
+
 export default function App(){
   const [profile,setProfile]            = useState(null);
   const [tab,setTab]                    = useState("horarios");
@@ -1381,10 +1468,10 @@ export default function App(){
     ?[{id:"horarios",label:"Mis clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},...(hasNatacion?[{id:"medica",label:"Médica",icon:Stethoscope}]:[]),{id:"perfil",label:"Perfil",icon:User}]
     :role==="staff"
     ?[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"alumnos",label:"Alumnos",icon:Users},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope},{id:"perfil",label:"Perfil",icon:User}]
-    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
+    :[{id:"horarios",label:"Clases",icon:CalendarIcon},{id:"calendario",label:"Calendario",icon:CalendarIcon},{id:"alumnos",label:"Alumnos",icon:Users},{id:"solicitudes",label:"Solicitudes",icon:MessageSquare},{id:"pagos",label:"Pagos",icon:CreditCard},{id:"medica",label:"Médica",icon:Stethoscope}];
 
-  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia"};
-  const noSportTabs=["perfil","alumnos","dependientes",...(role==="staff"||role==="admin"?["pagos"]:[])];
+  const titles={horarios:role==="profesor"?"Mis clases":"Clases",solicitudes:"Solicitudes",pagos:"Pagos",medica:"Revisión Médica",alumnos:"Alumnos",perfil:"Mi perfil",dependientes:"Mi familia",calendario:"Calendario"};
+  const noSportTabs=["perfil","alumnos","dependientes","calendario",...(role==="staff"||role==="admin"?["pagos"]:[])];
   const hasTutor=role==="usuario"&&dependientes.length>0;
 
   if(showCrear)return(
@@ -1429,6 +1516,7 @@ export default function App(){
         :<>
           {tab==="horarios"&&<ClasesView schedule={schedule} setSchedule={setSchedule} sport={activeSport} role={role} users={users} userName={profile.usuario} inscripciones={inscripciones} activeUserId={activeUserId}/>}
           {tab==="solicitudes"&&<SolicitudesView requests={requests} setRequests={setRequests} mensajes={mensajes} setMensajes={setMensajes} sport={activeSport} role={role} userName={profile.usuario} schedule={schedule} setSchedule={setSchedule} inscripciones={inscripciones} setInscripciones={setInscripciones} users={users} activeUserId={activeUserId}/>}
+          {tab==="calendario"&&role==="admin"&&<CalendarioMes schedule={schedule} setSchedule={setSchedule} users={users}/>}
           {tab==="pagos"&&<PaymentView sport={activeSport} role={role} comprobantes={comprobantes} setComprobantes={setComprobantes} mySports={mySports} activeUserId={activeUserId} userName={profile.usuario}/>}
           
           {tab==="medica"&&<RevisionMedica revisiones={revisiones} setRevisiones={setRevisiones} role={role} userName={profile.usuario} users={users} activeUserId={activeUserId}/>}
